@@ -3,7 +3,7 @@
  * 走行中に圏外へ入ってもアプリが落ちないことが目的。
  * ファイルを更新したら CACHE の版数を上げること（古いキャッシュが残り続ける）。
  */
-var CACHE = 'chari-pon-ichi-v2';
+var CACHE = 'chari-pon-ichi-v3';
 
 var ASSETS = [
   './',

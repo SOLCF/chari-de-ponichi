@@ -103,11 +103,10 @@ function draw(canvas, maskable) {
   ctx.arc(S / 2, S / 2, ar, -Math.PI / 2, Math.PI * 1.05);
   ctx.stroke();
 
-  // 日本列島
+  // 日本列島。塗りだけだとシルエットになるので、海岸線の線を重ねて地図らしくする
   if (japan) {
     var box = 300 * k;
     var off = (S - box) / 2;
-    ctx.fillStyle = '#2b3444';
     ctx.beginPath();
     projectJapan(japan, box).forEach(function (ring) {
       ring.forEach(function (pt, i) {
@@ -116,10 +115,26 @@ function draw(canvas, maskable) {
       });
       ctx.closePath();
     });
+    ctx.fillStyle = '#c3dd85';
     ctx.fill();
+    ctx.strokeStyle = '#7ba63c';
+    ctx.lineWidth = 4.5 * k;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
   }
 
-  // 現在地のドット。地図に隠れないよう最後に描く
+  // 自転車。置き場所は房総沖の太平洋。列島は右上(北海道)から左下(九州)へ
+  // 斜めに走るので、右下は海しかない。ここなら四国も九州も隠れない。
+  // 地図の上に重なるため、まず紙色で太く縁取ってから本体を描く
+  ctx.save();
+  ctx.translate(318 * k, 348 * k);
+  ctx.scale(0.58, 0.58);
+  ctx.translate(-256 * k, -308 * k);
+  drawBike(ctx, k, '#fdfcf7', 16 * k);
+  drawBike(ctx, k, '#2b3444', 0);
+  ctx.restore();
+
+  // 現在地のドット。地図にも自転車にも隠れないよう最後に描く
   var ang = Math.PI * 1.05;
   var dx = S / 2 + Math.cos(ang) * ar;
   var dy = S / 2 + Math.sin(ang) * ar;
@@ -129,6 +144,44 @@ function draw(canvas, maskable) {
   ctx.beginPath(); ctx.arc(dx, dy, 17 * k, 0, Math.PI * 2); ctx.fill();
 
   ctx.restore();
+}
+
+/* 自転車。extra に太さを足すと、本体の下に敷く縁取りになる。
+   512 を基準とした座標で、車輪は (172,322) と (340,322)、半径 66。 */
+function drawBike(ctx, k, color, extra) {
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.lineWidth = 17 * k + extra;
+  [172, 340].forEach(function (cx) {
+    ctx.beginPath();
+    ctx.arc(cx * k, 322 * k, 66 * k, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  // シートステー / シートチューブ / チェーンステー / ダウンチューブ / フォーク / トップチューブ
+  ctx.lineWidth = 18 * k + extra;
+  ctx.beginPath();
+  ctx.moveTo(172 * k, 322 * k); ctx.lineTo(252 * k, 236 * k);
+  ctx.lineTo(258 * k, 322 * k); ctx.lineTo(172 * k, 322 * k);
+  ctx.moveTo(258 * k, 322 * k); ctx.lineTo(330 * k, 240 * k);
+  ctx.lineTo(340 * k, 322 * k);
+  ctx.moveTo(252 * k, 236 * k); ctx.lineTo(330 * k, 240 * k);
+  ctx.stroke();
+
+  // サドルとハンドル
+  ctx.lineWidth = 16 * k + extra;
+  ctx.beginPath();
+  ctx.moveTo(232 * k, 228 * k); ctx.lineTo(272 * k, 228 * k);
+  ctx.moveTo(316 * k, 230 * k); ctx.lineTo(352 * k, 230 * k);
+  ctx.stroke();
+
+  // クランク
+  ctx.beginPath();
+  ctx.arc(258 * k, 322 * k, 14 * k + extra / 2, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function roundRect(ctx, x, y, w, h, r) {

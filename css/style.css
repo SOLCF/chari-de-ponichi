@@ -26,7 +26,10 @@
   --warn: #a97a00;
   --bad: #cf3b3b;
   --ring-track: #e7e1d4;
-  --map-fill: rgba(196, 122, 46, .16);   /* 背景の日本地図 */
+  /* 背景の日本地図。塗りだけだとシルエットに見えるので、
+     海岸線の線を一段濃く入れて地図らしさを出す */
+  --map-fill: rgba(163, 199, 92, .42);
+  --map-line: rgba(101, 138, 48, .55);
   --overlay: rgba(38, 44, 56, .42);
   --shadow: 0 6px 20px rgba(40, 50, 70, .12);
   --radius: 16px;
@@ -52,7 +55,8 @@
   --warn: #ffcc55;
   --bad: #ff6b6b;
   --ring-track: #263149;
-  --map-fill: rgba(255, 179, 92, .12);
+  --map-fill: rgba(150, 190, 88, .22);
+  --map-line: rgba(176, 210, 120, .45);
   --overlay: rgba(6, 10, 18, .72);
   --shadow: 0 8px 28px rgba(0, 0, 0, .45);
 }
@@ -134,7 +138,15 @@ body { min-height: 100vh; }
   mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 88%);
 }
 .jp-bg.is-ready { opacity: 1; }
-.jp-bg path { fill: var(--map-fill); }
+.jp-bg path {
+  fill: var(--map-fill);
+  stroke: var(--map-line);
+  /* viewBox が 1000 幅なので、そのままだと線の太さが表示倍率に振り回される。
+     non-scaling-stroke で画面上の太さを固定する */
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1.2px;
+  stroke-linejoin: round;
+}
 
 /* 地図より前に出す。地図だけは z-index の対象外にする */
 #view-home > *:not(.jp-bg) { position: relative; z-index: 1; }
