@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0f1420">
+<meta name="description" content="自転車の走行距離を積み上げて日本一周、そして宇宙へ。">
+<title>チャリでポンイチ</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ===== ホーム（走行） ===== -->
+  <section class="view is-active" id="view-home">
+    <header class="chapter-head">
+      <div class="chapter-icon" id="chapterIcon">🚲</div>
+      <div class="chapter-text">
+        <div class="chapter-label">現在の目標</div>
+        <h1 class="chapter-name" id="chapterName">日本一周</h1>
+        <div class="chapter-sub" id="chapterSub">海岸線をたどって、ぐるり一周</div>
+      </div>
+    </header>
+
+    <div class="ring-wrap">
+      <svg class="ring" viewBox="0 0 220 220" aria-hidden="true">
+        <circle class="ring-track" cx="110" cy="110" r="96"></circle>
+        <circle class="ring-bar" id="ringBar" cx="110" cy="110" r="96"></circle>
+      </svg>
+      <div class="ring-center">
+        <div class="total-value" id="totalKm">0</div>
+        <div class="total-unit">km</div>
+        <div class="total-pct" id="chapterPct">0%</div>
+      </div>
+    </div>
+
+    <div class="next-card" id="nextCard">
+      <div class="next-label">次のマイルストーン</div>
+      <div class="next-name" id="nextName">-</div>
+      <div class="next-remain" id="nextRemain">-</div>
+      <div class="next-eta" id="nextEta"></div>
+    </div>
+
+    <div class="live" id="liveStats" hidden>
+      <div class="live-grid">
+        <div class="stat">
+          <div class="stat-value" id="sessDist">0</div>
+          <div class="stat-label"><span id="sessDistUnit">m</span> 今回</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="sessTime">0:00</div>
+          <div class="stat-label">経過</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="sessSpeed">--</div>
+          <div class="stat-label">km/h 現在</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="sessAvg">--</div>
+          <div class="stat-label">km/h 平均</div>
+        </div>
+      </div>
+      <div class="gps-row">
+        <span class="gps-dot" id="gpsDot"></span>
+        <span class="gps-text" id="gpsText">測位中…</span>
+        <span class="gps-acc" id="gpsAcc"></span>
+      </div>
+    </div>
+
+    <p class="error-msg" id="errorMsg" hidden></p>
+
+    <div class="action">
+      <button class="btn-main" id="btnStartStop" type="button">
+        <span id="btnLabel">スタート</span>
+      </button>
+      <p class="action-hint" id="actionHint">画面を点けたまま走ってください</p>
+    </div>
+  </section>
+
+  <!-- ===== 記録 ===== -->
+  <section class="view" id="view-log">
+    <header class="view-head"><h1>記録</h1></header>
+    <div class="summary-row" id="logSummary"></div>
+    <div id="logList" class="log-list"></div>
+  </section>
+
+  <!-- ===== 旅路 ===== -->
+  <section class="view" id="view-journey">
+    <header class="view-head"><h1>旅路</h1></header>
+    <div class="journey-total" id="journeyTotal"></div>
+    <div id="journeyList"></div>
+  </section>
+
+  <!-- ===== 設定 ===== -->
+  <section class="view" id="view-settings">
+    <header class="view-head"><h1>設定</h1></header>
+
+    <div class="group">
+      <h2 class="group-title">計測の精度</h2>
+      <p class="group-note">
+        走りに合わせて調整できます。迷ったら「初期値に戻す」で戻せます。
+      </p>
+      <div id="filterControls"></div>
+    </div>
+
+    <div class="group">
+      <h2 class="group-title">動作</h2>
+      <label class="switch-row">
+        <span>
+          <span class="switch-name">高精度モード</span>
+          <span class="switch-help">GPSを優先して使います。切ると電池は持ちますが精度が落ちます。</span>
+        </span>
+        <input type="checkbox" id="optHighAccuracy">
+      </label>
+      <label class="switch-row">
+        <span>
+          <span class="switch-name">走行中は画面を消さない</span>
+          <span class="switch-help">画面が消えると計測が止まります。ハンドルに固定して使う想定です。</span>
+        </span>
+        <input type="checkbox" id="optKeepAwake">
+      </label>
+      <div class="switch-row">
+        <span>
+          <span class="switch-name">テーマ</span>
+        </span>
+        <select id="optTheme">
+          <option value="dark">ダーク</option>
+          <option value="light">ライト</option>
+          <option value="auto">端末に合わせる</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2 class="group-title">目標距離</h2>
+      <p class="group-note">各章のゴールまでの距離を変えられます。マイルストーンの位置も比例して伸縮します。</p>
+      <div id="goalControls"></div>
+    </div>
+
+    <div class="group">
+      <h2 class="group-title">距離の手動補正</h2>
+      <p class="group-note">
+        アプリを起動し忘れた分や、計測が止まっていた分を足せます。マイナスを入れれば減らせます。
+      </p>
+      <div class="manual-row">
+        <input type="number" id="manualKm" step="0.1" placeholder="0.0" inputmode="decimal">
+        <span class="manual-unit">km</span>
+        <button type="button" class="btn-sub" id="btnManualAdd">総距離に加える</button>
+      </div>
+      <p class="manual-breakdown" id="manualBreakdown"></p>
+    </div>
+
+    <div class="group">
+      <h2 class="group-title">データ</h2>
+      <div class="btn-row">
+        <button type="button" class="btn-sub" id="btnExport">バックアップを保存</button>
+        <button type="button" class="btn-sub" id="btnImport">バックアップから復元</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn-sub btn-danger" id="btnReset">すべてのデータを消す</button>
+      </div>
+      <p class="group-note" id="appVersion"></p>
+    </div>
+  </section>
+
+  <!-- ===== タブバー ===== -->
+  <nav class="tabbar">
+    <button type="button" class="tab is-active" data-view="home">
+      <span class="tab-icon">🚴</span><span class="tab-name">走行</span>
+    </button>
+    <button type="button" class="tab" data-view="log">
+      <span class="tab-icon">📖</span><span class="tab-name">記録</span>
+    </button>
+    <button type="button" class="tab" data-view="journey">
+      <span class="tab-icon">🗺️</span><span class="tab-name">旅路</span>
+    </button>
+    <button type="button" class="tab" data-view="settings">
+      <span class="tab-icon">⚙️</span><span class="tab-name">設定</span>
+    </button>
+  </nav>
+</div>
+
+<!-- マイルストーン達成の演出 -->
+<div class="celebrate" id="celebrate" hidden>
+  <div class="celebrate-card">
+    <div class="celebrate-icon" id="celIcon">🎉</div>
+    <div class="celebrate-kicker" id="celKicker">到達</div>
+    <div class="celebrate-name" id="celName"></div>
+    <div class="celebrate-sub" id="celSub"></div>
+    <button type="button" class="btn-main btn-small" id="celClose">つづける</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/geo.js"></script>
+<script src="js/format.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/store.js"></script>
+<script src="js/goals.js"></script>
+<script src="js/tracker.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>距離計算とフィルタの検証 — チャリでポンイチ</title>
+<style>
+  body { background:#0f1420; color:#eef2fa; margin:0; padding:24px 18px 60px;
+         font-family:-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:14px; margin:26px 0 8px; color:#ffb35c; letter-spacing:.04em; }
+  .lede { color:#8f9db8; font-size:13px; line-height:1.75; margin:0 0 6px; max-width:760px; }
+  #summary { display:inline-block; margin:16px 0 4px; padding:11px 20px; border-radius:999px;
+             font-weight:700; font-size:15px; }
+  .ok  { background:rgba(95,211,154,.15); color:#5fd39a; border:1px solid rgba(95,211,154,.4); }
+  .ng  { background:rgba(255,107,107,.15); color:#ff6b6b; border:1px solid rgba(255,107,107,.4); }
+  table { border-collapse:collapse; width:100%; max-width:980px; font-size:13px; }
+  th, td { text-align:left; padding:9px 10px; border-bottom:1px solid #2b3750; vertical-align:top; }
+  th { color:#8f9db8; font-weight:600; font-size:11px; letter-spacing:.06em; }
+  td.num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .mark { font-weight:700; white-space:nowrap; }
+  .mark.p { color:#5fd39a; }
+  .mark.f { color:#ff6b6b; }
+  .why { color:#8f9db8; font-size:11.5px; line-height:1.6; }
+  code { color:#ffb35c; }
+</style>
+</head>
+<body>
+
+<h1>距離計算とフィルタの検証</h1>
+<p class="lede">
+  GPS を使わずに、模擬した測位点の列を <code>js/geo.js</code> に流し込んで検証します。
+  乱数は固定シードなので、何度開いても同じ結果になります。
+</p>
+<div id="summary"></div>
+<div id="out"></div>
+
+<script src="../js/geo.js"></script>
+<script>
+var geo = CP.geo;
+var results = [];
+var groups = [];
+
+/* ---------- 検証の道具 ---------- */
+
+function group(name) { groups.push({ name: name, rows: [] }); }
+
+function check(name, actual, expected, tolerance, why) {
+  var pass = Math.abs(actual - expected) <= tolerance;
+  groups[groups.length - 1].rows.push({
+    name: name, actual: actual, expected: expected, tol: tolerance, pass: pass, why: why || ''
+  });
+  results.push(pass);
+}
+
+/* 固定シードの疑似乱数。テストを再現可能にする */
+function rng(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+var M_PER_DEG_LAT = 111194.9;
+function mPerDegLon(lat) { return M_PER_DEG_LAT * Math.cos(lat * Math.PI / 180); }
+
+/* 一定速度で北へ直進する測位点の列 */
+function straight(opts) {
+  var lat = opts.lat, lon = opts.lon;
+  var stepM = (opts.speedKmh / 3.6) * opts.intervalSec;
+  var pts = [];
+  var t = opts.t0 || 1700000000000;
+  for (var i = 0; i < opts.count; i++) {
+    pts.push({
+      lat: lat + (stepM * i) / M_PER_DEG_LAT,
+      lon: lon,
+      acc: opts.acc,
+      t: t + i * opts.intervalSec * 1000
+    });
+  }
+  return pts;
+}
+
+/* 同じ場所に留まりながら誤差の範囲で揺れる列（信号待ちなど） */
+function drifting(opts) {
+  var rand = rng(opts.seed || 7);
+  var pts = [];
+  var t = opts.t0 || 1700000000000;
+  for (var i = 0; i < opts.count; i++) {
+    var ang = rand() * Math.PI * 2;
+    var rad = rand() * opts.radiusM;
+    pts.push({
+      lat: opts.lat + (Math.sin(ang) * rad) / M_PER_DEG_LAT,
+      lon: opts.lon + (Math.cos(ang) * rad) / mPerDegLon(opts.lat),
+      acc: opts.acc,
+      t: t + i * opts.intervalSec * 1000
+    });
+  }
+  return pts;
+}
+
+function defaults(over) {
+  var f = { maxAccuracyM: 30, minSpeedKmh: 1.5, maxSpeedKmh: 60, gapResetSec: 300 };
+  for (var k in (over || {})) f[k] = over[k];
+  return f;
+}
+
+function meters(points, f) { return geo.reduceTrack(points, f).meters; }
+
+/* =======================================================================
+   1. Haversine そのものの正しさ
+   ======================================================================= */
+group('1. 距離計算 (Haversine)');
+
+var tokyo = { lat: 35.681236, lon: 139.767125 };
+var yokohama = { lat: 35.465786, lon: 139.622313 };
+check('東京駅 → 横浜駅', Math.round(geo.haversine(tokyo, yokohama)), 27300, 300,
+  '実際の直線距離は約27.3km。地図上の実測と一致すること');
+
+check('緯度1度ぶん (赤道)', Math.round(geo.haversine({lat:0,lon:0}, {lat:1,lon:0})), 111195, 60,
+  '緯度1度はどこでも約111.19km');
+
+check('経度1度ぶん (赤道)', Math.round(geo.haversine({lat:0,lon:0}, {lat:0,lon:1})), 111195, 60,
+  '赤道上では経度1度も約111.19km');
+
+check('経度1度ぶん (北緯60度)', Math.round(geo.haversine({lat:60,lon:0}, {lat:60,lon:1})), 55597, 60,
+  '高緯度では経度1度の実距離が cos(緯度) 倍に縮む');
+
+check('同じ地点どうし', geo.haversine(tokyo, tokyo), 0, 0.0001,
+  '0 でなければ停車中に距離が増える');
+
+/* =======================================================================
+   2. 素直な走行
+   ======================================================================= */
+group('2. 素直な走行');
+
+var ride = straight({ lat: 35.68, lon: 139.76, speedKmh: 20, intervalSec: 15, count: 41, acc: 8 });
+check('20km/h で10分走る', Math.round(meters(ride, defaults())), 3333, 40,
+  '20km/h × 600秒 = 3333m。フィルタが正常な走行を削っていないこと');
+
+var slowRide = straight({ lat: 35.68, lon: 139.76, speedKmh: 8, intervalSec: 15, count: 41, acc: 10 });
+check('8km/h でゆっくり走る', Math.round(meters(slowRide, defaults())), 1333, 30,
+  '低速でも取りこぼさないこと。1回あたり33mで、誤差しきい値20mを超えるため通る');
+
+// 5秒間隔・低速だと1回の移動が誤差しきい値を下回る。基準点を据え置く設計が効いているかを見る
+var fineRide = straight({ lat: 35.68, lon: 139.76, speedKmh: 10, intervalSec: 5, count: 121, acc: 10 });
+check('10km/h・5秒間隔（1回の移動が誤差以下）', Math.round(meters(fineRide, defaults())), 1667, 60,
+  '1回13.9mは誤差しきい値20m未満だが、基準点を据え置くので次で通り、合計は失われない');
+
+/* =======================================================================
+   3. 停車中に距離が増えないこと（このアプリで最も重要）
+   ======================================================================= */
+group('3. 停車中のふらつき');
+
+var idle = drifting({ lat: 35.68, lon: 139.76, count: 60, intervalSec: 15, radiusM: 8, acc: 10, seed: 3 });
+check('信号待ち15分（誤差10m・半径8mで揺れる）', Math.round(meters(idle, defaults())), 0, 0,
+  '1mでも増えるなら、置きっぱなしで日本一周できてしまう');
+
+var idleRough = drifting({ lat: 35.68, lon: 139.76, count: 60, intervalSec: 15, radiusM: 13, acc: 15, seed: 11 });
+check('精度が粗い場所での停車（誤差15m・半径13m）', Math.round(meters(idleRough, defaults())), 0, 0,
+  '誤差が大きいほどしきい値も上がるので、粗い環境でも増えないこと');
+
+/* =======================================================================
+   4. 異常な測位点をはじく
+   ======================================================================= */
+group('4. 異常値の除去');
+
+var clean = straight({ lat: 35.68, lon: 139.76, speedKmh: 20, intervalSec: 15, count: 31, acc: 8 });
+var cleanM = meters(clean, defaults());
+
+var withJump = clean.slice();
+withJump[15] = { lat: 35.72, lon: 139.82, acc: 8, t: clean[15].t };  // 約6km先へ瞬間移動
+check('5km超のワープが1点混ざる', Math.round(meters(withJump, defaults())), Math.round(cleanM), 1,
+  'ワープを捨て、基準点も動かさないので、前後がそのまま繋がって合計が変わらないこと');
+
+var withNoise = clean.map(function (p, i) {
+  return (i % 3 === 1) ? { lat: p.lat + 0.0009, lon: p.lon, acc: 80, t: p.t } : p;
+});
+check('3点に1点が精度80m（しきい値30m超）', Math.round(meters(withNoise, defaults())), Math.round(cleanM), 1,
+  '粗い点を捨てても、残った点どうしで距離が繋がること');
+
+var t0 = 1700000000000;
+var partA = straight({ lat: 35.68, lon: 139.76, speedKmh: 20, intervalSec: 15, count: 11, acc: 8, t0: t0 });
+var partB = straight({ lat: 35.75, lon: 139.90, speedKmh: 20, intervalSec: 15, count: 11, acc: 8,
+                       t0: t0 + 10 * 15000 + 600000 });   // 10分あけて、約13km離れた場所から再開
+check('10分の中断をはさんで別の場所で再開', Math.round(meters(partA.concat(partB), defaults())), 833 * 2, 40,
+  '中断中の移動は加算せず、基準点を置き直して再開すること（放置すると復帰できなくなる）');
+
+/* =======================================================================
+   5. 設定を変えたときにフィルタが効いているか
+   ======================================================================= */
+group('5. 設定値を振ったときの挙動');
+
+var fast = straight({ lat: 35.68, lon: 139.76, speedKmh: 30, intervalSec: 15, count: 41, acc: 8 });
+check('30km/h の走行 — 上限速度 60km/h', Math.round(meters(fast, defaults())), 5000, 60,
+  '上限内なのですべて加算される');
+check('30km/h の走行 — 上限速度 20km/h', Math.round(meters(fast, defaults({ maxSpeedKmh: 20 }))), 0, 0,
+  '上限を下げると走行そのものが「飛び」とみなされて距離が減る＝上限フィルタが効いている証明');
+check('30km/h の走行 — 上限速度 1000km/h', Math.round(meters(fast, defaults({ maxSpeedKmh: 1000 }))), 5000, 60,
+  '上限いっぱいでも通常の走行の結果は変わらない');
+
+// 上限1000km/hなら飛行機の移動も距離に乗る（精度を捨てて旅そのものを記録したい人向け）
+var flight = straight({ lat: 35.55, lon: 139.78, speedKmh: 800, intervalSec: 60, count: 61, acc: 20 });
+check('飛行機 800km/h — 上限 60km/h', Math.round(meters(flight, defaults())), 0, 0,
+  '既定では飛行機の移動は乗らない');
+check('飛行機 800km/h — 上限 1000km/h', Math.round(meters(flight, defaults({ maxSpeedKmh: 1000 })) / 1000), 800, 10,
+  '上限を上げれば1時間で800km乗る（単位はkm）');
+
+// 下限速度だけを切り分けて見るため、誤差しきい値は超えるが極端に遅い列を使う
+var crawl = straight({ lat: 35.68, lon: 139.76, speedKmh: 1, intervalSec: 60, count: 10, acc: 5, t0: t0 });
+check('1km/h の徐行 — 下限速度 1.5km/h', Math.round(meters(crawl, defaults({ gapResetSec: 3600 }))), 0, 0,
+  '下限未満なので停止中とみなして加算しない');
+check('1km/h の徐行 — 下限速度 0km/h', Math.round(meters(crawl, defaults({ minSpeedKmh: 0, gapResetSec: 3600 }))), 150, 3,
+  '下限を0にすると徐行ぶんも乗り始める＝下限フィルタが効いている証明');
+
+check('停車ふらつき — 精度しきい値をゆるめる(60m)',
+  Math.round(meters(idleRough, defaults({ maxAccuracyM: 60 }))), 0, 0,
+  '粗い点を通してもノイズ判定が受け止めるので、停車中はやはり増えない');
+
+/* =======================================================================
+   6. 実走に近い組み合わせ
+   ======================================================================= */
+group('6. 実走に近いシナリオ');
+
+// 10分走る → 信号待ち2分 → また10分走る
+var leg1 = straight({ lat: 35.68, lon: 139.76, speedKmh: 20, intervalSec: 15, count: 41, acc: 10, t0: t0 });
+var stopLat = leg1[leg1.length - 1].lat;
+var wait = drifting({ lat: stopLat, lon: 139.76, count: 8, intervalSec: 15, radiusM: 7, acc: 10, seed: 5,
+                      t0: t0 + 600000 + 15000 });
+var leg2 = straight({ lat: stopLat, lon: 139.76, speedKmh: 20, intervalSec: 15, count: 41, acc: 10,
+                      t0: t0 + 600000 + 15000 + 8 * 15000 });
+var full = leg1.concat(wait, leg2);
+check('10分走行 + 2分停車 + 10分走行', Math.round(meters(full, defaults())), 6667, 200,
+  '実際に走った20分ぶん（6667m）だけが乗り、停車の2分では増えないこと');
+
+var reasons = geo.reduceTrack(full, defaults()).counts;
+check('  └ うち停止と判定された点の数', reasons.noise + reasons.stationary, 8, 1,
+  '信号待ちの8点が停止として扱われていること');
+
+/* ---------- 結果の描画 ---------- */
+
+var html = [];
+for (var g = 0; g < groups.length; g++) {
+  html.push('<h2>' + groups[g].name + '</h2>');
+  html.push('<table><tr><th>判定</th><th>ケース</th><th>結果</th><th>期待値</th><th>ねらい</th></tr>');
+  for (var i = 0; i < groups[g].rows.length; i++) {
+    var r = groups[g].rows[i];
+    html.push('<tr>' +
+      '<td class="mark ' + (r.pass ? 'p">OK' : 'f">NG') + '</td>' +
+      '<td>' + r.name + '</td>' +
+      '<td class="num">' + fmtNum(r.actual) + '</td>' +
+      '<td class="num">' + fmtNum(r.expected) + (r.tol ? ' ±' + fmtNum(r.tol) : '') + '</td>' +
+      '<td class="why">' + r.why + '</td>' +
+    '</tr>');
+  }
+  html.push('</table>');
+}
+document.getElementById('out').innerHTML = html.join('');
+
+function fmtNum(n) {
+  return (Math.round(n * 10000) / 10000).toLocaleString('ja-JP');
+}
+
+var passed = results.filter(function (x) { return x; }).length;
+var s = document.getElementById('summary');
+s.className = (passed === results.length) ? 'ok' : 'ng';
+s.textContent = (passed === results.length)
+  ? 'すべて通りました（' + passed + ' / ' + results.length + '）'
+  : passed + ' / ' + results.length + ' 通過 — ' + (results.length - passed) + ' 件が失敗しています';
+</script>
+</body>
+</html>

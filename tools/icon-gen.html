@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>アイコン生成 — チャリでポンイチ</title>
+<style>
+  body { background:#0f1420; color:#eef2fa; font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+         margin:0; padding:28px; }
+  h1 { font-size:19px; margin:0 0 6px; }
+  p  { color:#8f9db8; font-size:13px; line-height:1.7; margin:0 0 20px; }
+  .row { display:flex; gap:22px; flex-wrap:wrap; align-items:flex-end; }
+  figure { margin:0; text-align:center; }
+  canvas { background:#000; border-radius:12px; display:block; }
+  figcaption { font-size:11px; color:#8f9db8; margin-top:7px; }
+  button { margin-top:18px; padding:12px 22px; font-size:14px; font-weight:600; border:none;
+           border-radius:999px; cursor:pointer;
+           background:linear-gradient(135deg,#ffb35c,#ff8a3d); color:#241300; }
+</style>
+</head>
+<body>
+
+<h1>アイコン生成</h1>
+<p>
+  下のボタンで 3 つの PNG を書き出します。ダウンロードしたファイルを
+  <code>icons/</code> フォルダに置いてください。<br>
+  必要なファイル名: <code>icon-192.png</code> / <code>icon-512.png</code> / <code>icon-maskable-512.png</code>
+</p>
+
+<div class="row">
+  <figure><canvas id="c192" width="192" height="192" style="width:192px"></canvas><figcaption>192 × 192</figcaption></figure>
+  <figure><canvas id="c512" width="512" height="512" style="width:192px"></canvas><figcaption>512 × 512</figcaption></figure>
+  <figure><canvas id="cmask" width="512" height="512" style="width:192px"></canvas><figcaption>512 × 512 maskable</figcaption></figure>
+</div>
+
+<button type="button" id="dl">3つまとめてダウンロード</button>
+
+<script>
+/* アイコンの作画。512 を基準に設計し、他のサイズは scale で追従させる。
+   maskable は端が切り落とされるので、中身を安全域(中央80%)に収める。 */
+function draw(canvas, maskable) {
+  var S = canvas.width;
+  var ctx = canvas.getContext('2d');
+  var k = S / 512;
+  ctx.clearRect(0, 0, S, S);
+
+  // 背景
+  ctx.save();
+  if (!maskable) {
+    var r = 112 * k;                       // Android がさらに角を丸めるので控えめに
+    roundRect(ctx, 0, 0, S, S, r);
+    ctx.clip();
+  }
+  var g = ctx.createLinearGradient(0, 0, S, S);
+  g.addColorStop(0, '#1b2540');
+  g.addColorStop(1, '#0d111c');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+
+  // 星をいくつか散らす（宇宙まで行く旅なので）
+  var stars = [[92,104,3],[420,86,4],[452,206,2.4],[74,392,2.6],[398,430,3],[150,60,2]];
+  ctx.fillStyle = 'rgba(238,242,250,.55)';
+  for (var i = 0; i < stars.length; i++) {
+    ctx.beginPath();
+    ctx.arc(stars[i][0]*k, stars[i][1]*k, stars[i][2]*k, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // maskable は中身を縮めて安全域に収める
+  ctx.save();
+  ctx.translate(S/2, S/2);
+  var inner = maskable ? 0.72 : 1;
+  ctx.scale(inner, inner);
+  ctx.translate(-S/2, -S/2);
+
+  // 周回中を表す弧
+  ctx.strokeStyle = '#ffb35c';
+  ctx.lineWidth = 20 * k;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(S/2, S/2, 218*k, -Math.PI/2, Math.PI * 1.05);
+  ctx.stroke();
+
+  // 現在地のドット
+  var ang = Math.PI * 1.05;
+  ctx.fillStyle = '#ffe0b4';
+  ctx.beginPath();
+  ctx.arc(S/2 + Math.cos(ang)*218*k, S/2 + Math.sin(ang)*218*k, 20*k, 0, Math.PI*2);
+  ctx.fill();
+
+  // 自転車
+  ctx.strokeStyle = '#ffb35c';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.lineWidth = 15 * k;
+  circle(ctx, 172*k, 322*k, 66*k);
+  circle(ctx, 340*k, 322*k, 66*k);
+
+  ctx.lineWidth = 16 * k;
+  ctx.beginPath();
+  ctx.moveTo(172*k, 322*k); ctx.lineTo(252*k, 236*k);   // シートステー
+  ctx.lineTo(258*k, 322*k);                              // シートチューブ
+  ctx.lineTo(172*k, 322*k);                              // チェーンステー
+  ctx.moveTo(258*k, 322*k); ctx.lineTo(330*k, 240*k);   // ダウンチューブ
+  ctx.lineTo(340*k, 322*k);                              // フォーク
+  ctx.moveTo(252*k, 236*k); ctx.lineTo(330*k, 240*k);   // トップチューブ
+  ctx.stroke();
+
+  ctx.lineWidth = 14 * k;
+  ctx.beginPath();
+  ctx.moveTo(232*k, 228*k); ctx.lineTo(272*k, 228*k);   // サドル
+  ctx.moveTo(316*k, 230*k); ctx.lineTo(352*k, 230*k);   // ハンドル
+  ctx.stroke();
+
+  // クランク
+  ctx.fillStyle = '#ffb35c';
+  ctx.beginPath();
+  ctx.arc(258*k, 322*k, 13*k, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function circle(ctx, x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke(); }
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+
+draw(document.getElementById('c192'), false);
+draw(document.getElementById('c512'), false);
+draw(document.getElementById('cmask'), true);
+
+function save(canvasId, name) {
+  var a = document.createElement('a');
+  a.href = document.getElementById(canvasId).toDataURL('image/png');
+  a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+document.getElementById('dl').addEventListener('click', function () {
+  save('c192', 'icon-192.png');
+  setTimeout(function () { save('c512', 'icon-512.png'); }, 250);
+  setTimeout(function () { save('cmask', 'icon-maskable-512.png'); }, 500);
+});
+
+// Claude Code から PNG のバイト列を取り出すための入口
+window.CPIcon = {
+  dataURL: function (id) { return document.getElementById(id).toDataURL('image/png'); }
+};
+</script>
+</body>
+</html>
