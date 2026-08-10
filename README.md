@@ -3,6 +3,8 @@
 自転車の走行距離をGPSで積み上げて、日本一周（12,000km）を目指すアプリ。
 走り切ったら世界一周 → 月旅行 → 火星旅行 → 1光年、と目標が続いていく。
 
+**→ https://solcf.github.io/chari-de-ponichi/**
+
 ビルド不要の PWA。素の HTML / CSS / JavaScript だけで動き、外部ライブラリも CDN も使っていない。
 
 ---
@@ -11,26 +13,25 @@
 
 ### スマホで使う（本番）
 
-Geolocation API と Service Worker は HTTPS でしか動かないため、どこかに置く必要がある。
-GitHub Pages が手軽（無料・HTTPS・Git だけで完結）。
+**https://solcf.github.io/chari-de-ponichi/**
 
-```bash
-cd "F:/Claude/チャリでポンイチ" && git init && git add -A && git commit -m "チャリでポンイチ" && git branch -M main
-```
-
-そのあと GitHub でリポジトリを作り、
-
-```bash
-git remote add origin https://github.com/<ユーザー名>/chari-pon-ichi.git && git push -u origin main
-```
-
-リポジトリの Settings → Pages → Source を `main` / `/ (root)` にすると
-`https://<ユーザー名>.github.io/chari-pon-ichi/` で開ける。
-
-Android Chrome でそのURLを開き、メニューから **「ホーム画面に追加」**。
+Android Chrome でこのURLを開き、メニューから **「ホーム画面に追加」**。
 アイコンから起動すればアドレスバーの無い全画面で動く。
 
 初回の走行開始時に位置情報の許可を求められるので「許可」を選ぶ。
+Geolocation API と Service Worker は HTTPS でしか動かないため、
+ローカルのファイルを直接開いても計測はできない。
+
+### 更新を反映する
+
+`main` に push すれば GitHub Pages が自動で作り直す（1〜2分）。
+
+```bash
+git add -A && git commit -m "変更内容" && git push
+```
+
+**アプリのファイルを変えたら `sw.js` の `CACHE` の版数も上げること。**
+上げないと Service Worker が古いキャッシュを返し続け、端末側に更新が届かない。
 
 ### PC で動作確認する
 
