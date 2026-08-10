@@ -24,19 +24,37 @@
     applyTheme();
     buildFilterControls();
     buildGoalControls();
+    renderJapanMap();
   }
 
   /* ---------- テーマ ---------- */
 
+  var THEME_COLOR = { light: '#f7f5f0', dark: '#0f1420' };
+
   function applyTheme() {
     var t = settings.get().theme;
     if (t === 'auto') {
-      t = global.matchMedia && global.matchMedia('(prefers-color-scheme: light)').matches
-        ? 'light' : 'dark';
+      t = global.matchMedia && global.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark' : 'light';
     }
     doc.documentElement.setAttribute('data-theme', t);
     var meta = doc.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', t === 'light' ? '#f4f6fb' : '#0f1420');
+    if (meta) meta.setAttribute('content', THEME_COLOR[t] || THEME_COLOR.light);
+  }
+
+  /* ---------- 走行画面の背景（日本地図） ---------- */
+
+  /* 地図はあくまで飾りなので、読み込めなくてもアプリは何事もなく動く。
+   * 色は CSS の --map-fill が持つので、テーマを切り替えても描き直す必要はない。 */
+  function renderJapanMap() {
+    if (!global.CP.japan) return;
+    global.CP.japan.load().then(function (data) {
+      var svg = global.CP.japan.toSvg(data, 1000);
+      var host = el('jpBg');
+      host.setAttribute('viewBox', svg.viewBox);
+      el('jpPath').setAttribute('d', svg.d);
+      host.classList.add('is-ready');
+    }).catch(function () { /* 地図なしで続行 */ });
   }
 
   /* ---------- ビュー切り替え ---------- */

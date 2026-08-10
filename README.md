@@ -127,15 +127,32 @@ GPS は静止していてもふらつくので、素朴に全点を足すと**�
 
 ---
 
+## 見た目
+
+地図帳のような紙の色を基調にしたライトテーマが既定。夜道向けにダークテーマも残してあり、
+設定から「ライト / ダーク / 端末に合わせる」を選べる。
+
+走行画面の背景には日本列島のシルエットが薄く入る。座標は `data/japan.json` が唯一の出処で、
+背景（`js/japan.js`）とアイコン（`tools/make-icons.ps1`）が同じファイルを読む。
+地図を直したいときは JSON だけ触ればよい。
+
+色は用途で使い分けている。図形には `--accent`、白地に載る文字には濃くした `--accent-strong`、
+アクセント色の上に載る文字には `--on-accent`。
+補助文字（11〜12px）が多いので、`--muted` はどの面の上でもコントラスト比 4.5:1 以上を確保している。
+
+---
+
 ## ファイル
 
 ```
 index.html               単一ページ。4タブを内部で切り替える
 manifest.webmanifest     PWA定義
 sw.js                    Service Worker（オフライン動作）
-css/style.css            ダーク/ライト対応
+css/style.css            ライトが既定。ダークは data-theme="dark" で切り替え
+data/japan.json        ★ 日本の海岸線。背景の地図とアイコンが同じこれを読む
 js/
   geo.js       ★ 距離計算とフィルタ。純粋関数のみ（GPS・DOM・保存に触らない）
+  japan.js       data/japan.json を SVG パスに変換する
   format.js      表示の書式化。万・億・兆への丸めなど
   settings.js    設定の既定値・範囲・プリセット。UIはこの定義から自動生成される
   store.js     ★ 永続化。localStorage と IndexedDB をここに閉じ込める

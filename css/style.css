@@ -1,7 +1,39 @@
-/* チャリでポンイチ — 夜道と星空を意識した配色。
-   走行中にハンドル上で見るので、コントラストと文字サイズは強めに取る。 */
+/* チャリでポンイチ — 地図帳のような紙の色を基調にしたライトテーマ。
+   走行中にハンドル上で見るので、コントラストと文字サイズは強めに取る。
+   夜道や就寝前のためにダークテーマも残してある。
+
+   色は用途で使い分ける:
+     --accent        図形（進捗リング、バー、スライダー）
+     --accent-strong 文字（ライトでは白地に載るので濃くする）
+     --on-accent     アクセント色の上に載る文字 */
 
 :root {
+  --bg: #f7f5f0;          /* 少し温かみのある紙の色 */
+  --bg-2: #ffffff;
+  --card: #ffffff;
+  --card-2: #f3f0e9;
+  --line: #e5e0d5;
+  --text: #1d2430;
+  --muted: #5f6a7c;       /* 11-12px の補助文字が多いので、どの面の上でも 4.5:1 を確保する */
+  --accent: #e07a1e;
+  --accent-2: #c25f10;
+  --accent-strong: #a9540a;
+  --on-accent: #ffffff;
+  --accent-glow: rgba(224, 122, 30, .28);
+  --stop-1: #e35a5a;
+  --stop-2: #c23a3a;
+  --good: #1a9166;
+  --warn: #a97a00;
+  --bad: #cf3b3b;
+  --ring-track: #e7e1d4;
+  --map-fill: rgba(196, 122, 46, .16);   /* 背景の日本地図 */
+  --overlay: rgba(38, 44, 56, .42);
+  --shadow: 0 6px 20px rgba(40, 50, 70, .12);
+  --radius: 16px;
+  --tabbar-h: 62px;
+}
+
+:root[data-theme="dark"] {
   --bg: #0f1420;
   --bg-2: #161d2e;
   --card: #1b2334;
@@ -9,32 +41,20 @@
   --line: #2b3750;
   --text: #eef2fa;
   --muted: #8f9db8;
-  --accent: #ffb35c;      /* 夜明けの色。進捗とスタートボタン */
+  --accent: #ffb35c;      /* 夜明けの色 */
   --accent-2: #ff8a3d;
+  --accent-strong: #ffb35c;
+  --on-accent: #241300;
+  --accent-glow: rgba(255, 179, 92, .35);
+  --stop-1: #ff7a7a;
+  --stop-2: #e04a4a;
   --good: #5fd39a;
   --warn: #ffcc55;
   --bad: #ff6b6b;
   --ring-track: #263149;
+  --map-fill: rgba(255, 179, 92, .12);
+  --overlay: rgba(6, 10, 18, .72);
   --shadow: 0 8px 28px rgba(0, 0, 0, .45);
-  --radius: 16px;
-  --tabbar-h: 62px;
-}
-
-:root[data-theme="light"] {
-  --bg: #f4f6fb;
-  --bg-2: #ffffff;
-  --card: #ffffff;
-  --card-2: #eef1f8;
-  --line: #dde3ef;
-  --text: #16203a;
-  --muted: #6b7896;
-  --accent: #e07b1f;
-  --accent-2: #c8631a;
-  --good: #1e9c6b;
-  --warn: #b98600;
-  --bad: #d33b3b;
-  --ring-track: #e2e7f2;
-  --shadow: 0 6px 20px rgba(20, 30, 60, .10);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -63,6 +83,7 @@ body { min-height: 100vh; }
 
 /* ---------- ビュー切り替え ---------- */
 .view { display: none; padding: 0 18px 24px; }
+#view-home { position: relative; overflow: hidden; }   /* 背景の日本地図の基準 */
 .view.is-active { display: block; animation: fade .18s ease-out; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
@@ -91,8 +112,32 @@ body { min-height: 100vh; }
   stroke-dasharray: 603.19;      /* 2πr, r=96 */
   stroke-dashoffset: 603.19;
   transition: stroke-dashoffset .6s cubic-bezier(.22,.9,.3,1);
-  filter: drop-shadow(0 0 6px rgba(255, 179, 92, .35));
+  filter: drop-shadow(0 0 6px var(--accent-glow));
 }
+
+/* 背景の日本地図。走行画面の主役はあくまで数字なので、
+   輪郭が分かる程度まで薄くして、指の操作も拾わないようにする */
+.jp-bg {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 420px;
+  width: auto;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .6s ease;
+  /* 下は「次のマイルストーン」カードに重なる。カードは不透明なので、
+     何もしないとカードの左右で地図が直線的に切れて見える。手前で溶かしておく */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 88%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 88%);
+}
+.jp-bg.is-ready { opacity: 1; }
+.jp-bg path { fill: var(--map-fill); }
+
+/* 地図より前に出す。地図だけは z-index の対象外にする */
+#view-home > *:not(.jp-bg) { position: relative; z-index: 1; }
 .ring-center {
   position: absolute;
   inset: 0;
@@ -109,7 +154,7 @@ body { min-height: 100vh; }
   letter-spacing: -.02em;
 }
 .total-unit { font-size: 13px; color: var(--muted); margin-top: 2px; }
-.total-pct { font-size: 12px; color: var(--accent); margin-top: 8px; font-weight: 600; }
+.total-pct { font-size: 12px; color: var(--accent-strong); margin-top: 8px; font-weight: 600; }
 
 /* ---------- 次のマイルストーン ---------- */
 .next-card {
@@ -121,7 +166,7 @@ body { min-height: 100vh; }
 }
 .next-label { font-size: 11px; color: var(--muted); letter-spacing: .1em; }
 .next-name { font-size: 17px; font-weight: 600; margin-top: 3px; }
-.next-remain { font-size: 13px; color: var(--accent); margin-top: 4px; font-weight: 600; }
+.next-remain { font-size: 13px; color: var(--accent-strong); margin-top: 4px; font-weight: 600; }
 .next-eta { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
 /* ---------- 走行中のライブ表示 ---------- */
@@ -168,8 +213,8 @@ body { min-height: 100vh; }
   margin: 10px 0 0;
   padding: 10px 14px;
   border-radius: 12px;
-  background: rgba(255, 107, 107, .12);
-  border: 1px solid rgba(255, 107, 107, .3);
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bad) 32%, transparent);
   color: var(--bad);
   font-size: 13px;
 }
@@ -182,7 +227,7 @@ body { min-height: 100vh; }
   font-size: 19px;
   font-weight: 700;
   letter-spacing: .08em;
-  color: #241300;
+  color: var(--on-accent);
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   border: none;
   border-radius: 999px;
@@ -192,7 +237,7 @@ body { min-height: 100vh; }
 }
 .btn-main:active { transform: scale(.97); }
 .btn-main.is-stop {
-  background: linear-gradient(135deg, #ff7a7a, #e04a4a);
+  background: linear-gradient(135deg, var(--stop-1), var(--stop-2));
   color: #fff;
 }
 .btn-main.btn-small { width: auto; padding: 12px 30px; font-size: 15px; margin-top: 16px; }
@@ -289,7 +334,7 @@ body { min-height: 100vh; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.chap-state { font-size: 12px; color: var(--accent); font-weight: 600; flex: none; }
+.chap-state { font-size: 12px; color: var(--accent-strong); font-weight: 600; flex: none; }
 .chap-state.is-clear { color: var(--good); }
 
 .chap-bar { height: 5px; background: var(--ring-track); }
@@ -309,10 +354,10 @@ body { min-height: 100vh; }
 .ms:last-child { border-bottom: none; }
 .ms-mark { width: 17px; flex: none; text-align: center; color: var(--muted); }
 .ms.is-done .ms-mark { color: var(--good); }
-.ms.is-next .ms-mark { color: var(--accent); }
+.ms.is-next .ms-mark { color: var(--accent-strong); }
 .ms-name { flex: 1; color: var(--muted); }
 .ms.is-done .ms-name { color: var(--text); }
-.ms.is-next .ms-name { color: var(--accent); font-weight: 600; }
+.ms.is-next .ms-name { color: var(--accent-strong); font-weight: 600; }
 .ms-km { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ms.is-goal .ms-name { font-weight: 700; }
 
@@ -331,7 +376,7 @@ body { min-height: 100vh; }
 .ctrl:first-child { border-top: none; padding-top: 2px; }
 .ctrl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .ctrl-name { font-size: 14px; font-weight: 600; }
-.ctrl-value { font-size: 16px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.ctrl-value { font-size: 16px; font-weight: 700; color: var(--accent-strong); font-variant-numeric: tabular-nums; }
 .ctrl-value small { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 2px; }
 .ctrl-help { font-size: 11px; color: var(--muted); line-height: 1.65; margin: 5px 0 9px; }
 
@@ -370,7 +415,7 @@ input[type="range"]::-moz-range-thumb {
   color: var(--muted);
   cursor: pointer;
 }
-.preset.is-on { border-color: var(--accent); color: var(--accent); background: transparent; font-weight: 600; }
+.preset.is-on { border-color: var(--accent); color: var(--accent-strong); background: transparent; font-weight: 600; }
 
 .switch-row {
   display: flex;
@@ -433,7 +478,7 @@ input[type="number"], input[type="text"] {
   cursor: pointer;
 }
 .btn-sub:active { opacity: .7; }
-.btn-danger { color: var(--bad); border-color: rgba(255, 107, 107, .35); }
+.btn-danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
 
 /* ---------- タブバー ---------- */
 .tabbar {
@@ -464,7 +509,7 @@ input[type="number"], input[type="text"] {
 }
 .tab-icon { font-size: 20px; line-height: 1; filter: grayscale(1) opacity(.6); }
 .tab-name { font-size: 10px; }
-.tab.is-active { color: var(--accent); }
+.tab.is-active { color: var(--accent-strong); }
 .tab.is-active .tab-icon { filter: none; }
 
 /* ---------- 達成演出 ---------- */
@@ -472,7 +517,7 @@ input[type="number"], input[type="text"] {
   position: fixed; inset: 0; z-index: 60;
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
-  background: rgba(6, 10, 18, .75);
+  background: var(--overlay);
   backdrop-filter: blur(4px);
   animation: fade .2s ease-out;
 }
@@ -488,7 +533,7 @@ input[type="number"], input[type="text"] {
 }
 .celebrate-icon { font-size: 54px; animation: pop .5s cubic-bezier(.2,1.4,.4,1); }
 @keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
-.celebrate-kicker { font-size: 11px; color: var(--accent); letter-spacing: .22em; margin-top: 10px; }
+.celebrate-kicker { font-size: 11px; color: var(--accent-strong); letter-spacing: .22em; margin-top: 10px; }
 .celebrate-name { font-size: 22px; font-weight: 700; margin-top: 6px; line-height: 1.35; }
 .celebrate-sub {
   font-size: 12px;

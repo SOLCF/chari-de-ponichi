@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0f1420">
+<meta name="theme-color" content="#f7f5f0">
 <meta name="description" content="自転車の走行距離を積み上げて日本一周、そして宇宙へ。">
 <title>チャリでポンイチ</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -20,6 +20,9 @@
 
   <!-- ===== ホーム（走行） ===== -->
   <section class="view is-active" id="view-home">
+    <!-- 背景の日本地図。パスは js/japan.js が data/japan.json から組み立てる -->
+    <svg class="jp-bg" id="jpBg" aria-hidden="true" focusable="false"><path id="jpPath"></path></svg>
+
     <header class="chapter-head">
       <div class="chapter-icon" id="chapterIcon">🚲</div>
       <div class="chapter-text">
@@ -129,10 +132,11 @@
       <div class="switch-row">
         <span>
           <span class="switch-name">テーマ</span>
+          <span class="switch-help">夜道ではダークの方が目が疲れません。</span>
         </span>
         <select id="optTheme">
-          <option value="dark">ダーク</option>
           <option value="light">ライト</option>
+          <option value="dark">ダーク</option>
           <option value="auto">端末に合わせる</option>
         </select>
       </div>
@@ -202,6 +206,7 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="js/geo.js"></script>
+<script src="js/japan.js"></script>
 <script src="js/format.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/store.js"></script>

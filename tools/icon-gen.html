@@ -4,17 +4,18 @@
 <meta charset="utf-8">
 <title>アイコン生成 — チャリでポンイチ</title>
 <style>
-  body { background:#0f1420; color:#eef2fa; font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+  body { background:#f7f5f0; color:#1d2430; font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
          margin:0; padding:28px; }
   h1 { font-size:19px; margin:0 0 6px; }
-  p  { color:#8f9db8; font-size:13px; line-height:1.7; margin:0 0 20px; }
+  p  { color:#5f6a7c; font-size:13px; line-height:1.7; margin:0 0 20px; }
   .row { display:flex; gap:22px; flex-wrap:wrap; align-items:flex-end; }
   figure { margin:0; text-align:center; }
-  canvas { background:#000; border-radius:12px; display:block; }
-  figcaption { font-size:11px; color:#8f9db8; margin-top:7px; }
+  canvas { border-radius:12px; display:block; box-shadow:0 4px 14px rgba(40,50,70,.12); }
+  figcaption { font-size:11px; color:#5f6a7c; margin-top:7px; }
   button { margin-top:18px; padding:12px 22px; font-size:14px; font-weight:600; border:none;
            border-radius:999px; cursor:pointer;
-           background:linear-gradient(135deg,#ffb35c,#ff8a3d); color:#241300; }
+           background:linear-gradient(135deg,#e07a1e,#c25f10); color:#fff; }
+  .warn { color:#cf3b3b; }
 </style>
 </head>
 <body>
@@ -23,7 +24,10 @@
 <p>
   下のボタンで 3 つの PNG を書き出します。ダウンロードしたファイルを
   <code>icons/</code> フォルダに置いてください。<br>
-  必要なファイル名: <code>icon-192.png</code> / <code>icon-512.png</code> / <code>icon-maskable-512.png</code>
+  必要なファイル名: <code>icon-192.png</code> / <code>icon-512.png</code> / <code>icon-maskable-512.png</code><br>
+  地図は <code>data/japan.json</code> を読み込むので、<b>ローカルサーバ経由で開いてください</b>
+  （<code>tools/serve.ps1</code> を起動して <code>/tools/icon-gen.html</code>）。<br>
+  ブラウザを使わずに作り直すなら <code>tools/make-icons.ps1</code> でも同じ絵が出ます。
 </p>
 
 <div class="row">
@@ -33,110 +37,125 @@
 </div>
 
 <button type="button" id="dl">3つまとめてダウンロード</button>
+<p id="status"></p>
 
 <script>
-/* アイコンの作画。512 を基準に設計し、他のサイズは scale で追従させる。
-   maskable は端が切り落とされるので、中身を安全域(中央80%)に収める。 */
+/* 512 を基準に設計し、他のサイズは scale で追従させる。
+   tools/make-icons.ps1 と同じ絵になるよう寸法を揃えてある。 */
+
+var japan = null;
+
+/* js/japan.js の project() と同じ等距円筒図法 */
+function projectJapan(data, box) {
+  var k = Math.cos((data.lat0 || 38) * Math.PI / 180);
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  var rings = data.islands.map(function (island) {
+    return island.ring.map(function (p) {
+      var x = p[0] * k, y = -p[1];
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      return [x, y];
+    });
+  });
+  var w = maxX - minX, h = maxY - minY;
+  var scale = Math.min(box / w, box / h);
+  var offX = (box - w * scale) / 2, offY = (box - h * scale) / 2;
+  return rings.map(function (ring) {
+    return ring.map(function (pt) {
+      return [(pt[0] - minX) * scale + offX, (pt[1] - minY) * scale + offY];
+    });
+  });
+}
+
 function draw(canvas, maskable) {
   var S = canvas.width;
   var ctx = canvas.getContext('2d');
   var k = S / 512;
   ctx.clearRect(0, 0, S, S);
 
-  // 背景
+  // 背景（アプリ本体がライトテーマなので、アイコンも紙の色にする）
   ctx.save();
   if (!maskable) {
-    var r = 112 * k;                       // Android がさらに角を丸めるので控えめに
-    roundRect(ctx, 0, 0, S, S, r);
+    roundRect(ctx, 0, 0, S, S, 112 * k);
     ctx.clip();
   }
   var g = ctx.createLinearGradient(0, 0, S, S);
-  g.addColorStop(0, '#1b2540');
-  g.addColorStop(1, '#0d111c');
+  g.addColorStop(0, '#fdfcf7');
+  g.addColorStop(1, '#eee8da');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, S, S);
-
-  // 星をいくつか散らす（宇宙まで行く旅なので）
-  var stars = [[92,104,3],[420,86,4],[452,206,2.4],[74,392,2.6],[398,430,3],[150,60,2]];
-  ctx.fillStyle = 'rgba(238,242,250,.55)';
-  for (var i = 0; i < stars.length; i++) {
-    ctx.beginPath();
-    ctx.arc(stars[i][0]*k, stars[i][1]*k, stars[i][2]*k, 0, Math.PI*2);
-    ctx.fill();
-  }
   ctx.restore();
 
-  // maskable は中身を縮めて安全域に収める
+  // maskable は端が切り落とされるので、中身を安全域に収める
   ctx.save();
-  ctx.translate(S/2, S/2);
-  var inner = maskable ? 0.72 : 1;
-  ctx.scale(inner, inner);
-  ctx.translate(-S/2, -S/2);
+  ctx.translate(S / 2, S / 2);
+  ctx.scale(maskable ? 0.72 : 1, maskable ? 0.72 : 1);
+  ctx.translate(-S / 2, -S / 2);
 
-  // 周回中を表す弧
-  ctx.strokeStyle = '#ffb35c';
-  ctx.lineWidth = 20 * k;
+  // 日本を一周する軌跡
+  var ar = 214 * k;
+  ctx.strokeStyle = '#e07a1e';
+  ctx.lineWidth = 21 * k;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.arc(S/2, S/2, 218*k, -Math.PI/2, Math.PI * 1.05);
+  ctx.arc(S / 2, S / 2, ar, -Math.PI / 2, Math.PI * 1.05);
   ctx.stroke();
 
-  // 現在地のドット
+  // 日本列島
+  if (japan) {
+    var box = 300 * k;
+    var off = (S - box) / 2;
+    ctx.fillStyle = '#2b3444';
+    ctx.beginPath();
+    projectJapan(japan, box).forEach(function (ring) {
+      ring.forEach(function (pt, i) {
+        var x = pt[0] + off, y = pt[1] + off;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+    });
+    ctx.fill();
+  }
+
+  // 現在地のドット。地図に隠れないよう最後に描く
   var ang = Math.PI * 1.05;
-  ctx.fillStyle = '#ffe0b4';
-  ctx.beginPath();
-  ctx.arc(S/2 + Math.cos(ang)*218*k, S/2 + Math.sin(ang)*218*k, 20*k, 0, Math.PI*2);
-  ctx.fill();
-
-  // 自転車
-  ctx.strokeStyle = '#ffb35c';
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  ctx.lineWidth = 15 * k;
-  circle(ctx, 172*k, 322*k, 66*k);
-  circle(ctx, 340*k, 322*k, 66*k);
-
-  ctx.lineWidth = 16 * k;
-  ctx.beginPath();
-  ctx.moveTo(172*k, 322*k); ctx.lineTo(252*k, 236*k);   // シートステー
-  ctx.lineTo(258*k, 322*k);                              // シートチューブ
-  ctx.lineTo(172*k, 322*k);                              // チェーンステー
-  ctx.moveTo(258*k, 322*k); ctx.lineTo(330*k, 240*k);   // ダウンチューブ
-  ctx.lineTo(340*k, 322*k);                              // フォーク
-  ctx.moveTo(252*k, 236*k); ctx.lineTo(330*k, 240*k);   // トップチューブ
-  ctx.stroke();
-
-  ctx.lineWidth = 14 * k;
-  ctx.beginPath();
-  ctx.moveTo(232*k, 228*k); ctx.lineTo(272*k, 228*k);   // サドル
-  ctx.moveTo(316*k, 230*k); ctx.lineTo(352*k, 230*k);   // ハンドル
-  ctx.stroke();
-
-  // クランク
-  ctx.fillStyle = '#ffb35c';
-  ctx.beginPath();
-  ctx.arc(258*k, 322*k, 13*k, 0, Math.PI*2);
-  ctx.fill();
+  var dx = S / 2 + Math.cos(ang) * ar;
+  var dy = S / 2 + Math.sin(ang) * ar;
+  ctx.fillStyle = '#fdfcf7';
+  ctx.beginPath(); ctx.arc(dx, dy, 25 * k, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e07a1e';
+  ctx.beginPath(); ctx.arc(dx, dy, 17 * k, 0, Math.PI * 2); ctx.fill();
 
   ctx.restore();
 }
-
-function circle(ctx, x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke(); }
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
-  ctx.moveTo(x+r, y);
-  ctx.arcTo(x+w, y,   x+w, y+h, r);
-  ctx.arcTo(x+w, y+h, x,   y+h, r);
-  ctx.arcTo(x,   y+h, x,   y,   r);
-  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
   ctx.closePath();
 }
 
-draw(document.getElementById('c192'), false);
-draw(document.getElementById('c512'), false);
-draw(document.getElementById('cmask'), true);
+function drawAll() {
+  draw(document.getElementById('c192'), false);
+  draw(document.getElementById('c512'), false);
+  draw(document.getElementById('cmask'), true);
+}
+
+drawAll();
+fetch('../data/japan.json')
+  .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(function (j) { japan = j; drawAll(); })
+  .catch(function () {
+    document.getElementById('status').innerHTML =
+      '<span class="warn">data/japan.json を読み込めませんでした。' +
+      'ローカルサーバ経由で開いてください（file:// では読めません）。</span>';
+  });
 
 function save(canvasId, name) {
   var a = document.createElement('a');
@@ -150,11 +169,6 @@ document.getElementById('dl').addEventListener('click', function () {
   setTimeout(function () { save('c512', 'icon-512.png'); }, 250);
   setTimeout(function () { save('cmask', 'icon-maskable-512.png'); }, 500);
 });
-
-// Claude Code から PNG のバイト列を取り出すための入口
-window.CPIcon = {
-  dataURL: function (id) { return document.getElementById(id).toDataURL('image/png'); }
-};
 </script>
 </body>
 </html>

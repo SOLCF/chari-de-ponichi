@@ -16,7 +16,7 @@
     gapResetSec: 300,       // これ以上の空白は「計測中断」とみなし基準点を置き直す
     highAccuracy: true,     // enableHighAccuracy
     keepAwake: true,        // 走行中に画面を点灯維持する
-    theme: 'dark',          // 'dark' | 'light' | 'auto'
+    theme: 'light',         // 'light' | 'dark' | 'auto'
     goalOverrides: {}       // {章id: km} 目標距離の上書き。goals.js が比例でマイルストーンも伸縮させる
   };
 

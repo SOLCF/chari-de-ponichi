@@ -27,7 +27,7 @@
     el('appVersion').textContent = 'チャリでポンイチ v' + VERSION;
 
     if (global.matchMedia) {
-      global.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () {
+      global.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
         if (CP.settings.get().theme === 'auto') CP.ui.applyTheme();
       });
     }

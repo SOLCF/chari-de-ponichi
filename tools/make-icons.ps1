@@ -14,6 +14,52 @@ if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir | Out
 
 function Get-Color([string]$hex) { [System.Drawing.ColorTranslator]::FromHtml($hex) }
 
+# 日本地図の輪郭は data/japan.json が唯一の出処。アプリの背景(js/japan.js)と
+# ここが同じファイルを読むので、地図を直すときは JSON だけ触ればよい。
+$japanJson = Get-Content (Join-Path $root 'data\japan.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+
+# js/japan.js の project() と同じ等距円筒図法。経度に cos(基準緯度) を掛けて横の縮みを合わせる
+function Get-JapanRings {
+    param([single]$Box)
+
+    $k = [Math]::Cos($japanJson.lat0 * [Math]::PI / 180.0)
+    $rings = @()
+    $minX = [double]::MaxValue; $maxX = [double]::MinValue
+    $minY = [double]::MaxValue; $maxY = [double]::MinValue
+
+    foreach ($island in $japanJson.islands) {
+        $pts = @()
+        foreach ($p in $island.ring) {
+            $x = [double]$p[0] * $k
+            $y = -[double]$p[1]          # 北を上にするので緯度は符号を反転
+            if ($x -lt $minX) { $minX = $x }
+            if ($x -gt $maxX) { $maxX = $x }
+            if ($y -lt $minY) { $minY = $y }
+            if ($y -gt $maxY) { $maxY = $y }
+            $pts += ,@($x, $y)
+        }
+        $rings += ,$pts
+    }
+
+    # 指定の正方形に収まるよう拡大し、中央へ寄せる
+    $w = $maxX - $minX; $h = $maxY - $minY
+    $scale = [Math]::Min($Box / $w, $Box / $h)
+    $offX = ($Box - $w * $scale) / 2.0
+    $offY = ($Box - $h * $scale) / 2.0
+
+    $out = @()
+    foreach ($ring in $rings) {
+        $poly = New-Object 'System.Collections.Generic.List[System.Drawing.PointF]'
+        foreach ($pt in $ring) {
+            $poly.Add((New-Object System.Drawing.PointF(
+                [single](($pt[0] - $minX) * $scale + $offX),
+                [single](($pt[1] - $minY) * $scale + $offY))))
+        }
+        $out += ,$poly.ToArray()
+    }
+    return $out
+}
+
 function New-Icon {
     param([int]$Size, [bool]$Maskable, [string]$FileName)
 
@@ -38,28 +84,13 @@ function New-Icon {
         $path.Dispose()
     }
 
+    # アプリ本体がライトテーマなので、アイコンも紙の色を基調にする
     $bg = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
         (New-Object System.Drawing.PointF(0, 0)),
         (New-Object System.Drawing.PointF($S, $S)),
-        (Get-Color '#1b2540'), (Get-Color '#0d111c'))
+        (Get-Color '#fdfcf7'), (Get-Color '#eee8da'))
     $g.FillRectangle($bg, 0, 0, $S, $S)
     $bg.Dispose()
-
-    # 宇宙まで行く旅なので星を散らす
-    $star = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(140, 238, 242, 250))
-    $stars = @()
-    $stars += ,@(92,104,3)
-    $stars += ,@(420,86,4)
-    $stars += ,@(452,206,2.4)
-    $stars += ,@(74,392,2.6)
-    $stars += ,@(398,430,3)
-    $stars += ,@(150,60,2)
-    # PowerShell の変数名は大文字小文字を区別しないので、キャンバス幅 $S を潰さない名前にする
-    foreach ($pt in $stars) {
-        $sr = [float]$pt[2] * $k
-        $g.FillEllipse($star, [float]($pt[0]*$k - $sr), [float]($pt[1]*$k - $sr), $sr*2, $sr*2)
-    }
-    $star.Dispose()
 
     # --- 中身 ---------------------------------------------------------------
     # maskable は端が切り落とされるので、中身を安全域(中央80%)に収める
@@ -69,63 +100,45 @@ function New-Icon {
         $g.TranslateTransform(-($S/2), -($S/2))
     }
 
-    $accent = Get-Color '#ffb35c'
+    $accent = Get-Color '#e07a1e'
 
-    # 周回中を表す弧。真上から時計回りに 279 度
-    $pen = New-Object System.Drawing.Pen($accent, [float](20 * $k))
+    # 日本を一周する軌跡。真上から時計回りに 279 度まわし、先端を現在地とする
+    $pen = New-Object System.Drawing.Pen($accent, [float](21 * $k))
     $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
     $pen.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
-    $ar = 218.0 * $k
+    $ar = 214.0 * $k
     $g.DrawArc($pen, $S/2 - $ar, $S/2 - $ar, $ar*2, $ar*2, -90, 279)
     $pen.Dispose()
 
-    # 現在地のドット（弧の先端）
+    # 日本列島。半径214の弧の内側に収まるよう、300四方の枠に合わせる
+    #   （枠の対角の半分は約200なので、弧の内縁208より内側に収まる）
+    $jbox = [single](300.0 * $k)
+    $joff = [single](($S - $jbox) / 2.0)
+    $jpath = New-Object System.Drawing.Drawing2D.GraphicsPath
+    foreach ($ring in (Get-JapanRings -Box $jbox)) {
+        $moved = New-Object 'System.Collections.Generic.List[System.Drawing.PointF]'
+        foreach ($pt in $ring) {
+            $moved.Add((New-Object System.Drawing.PointF([single]($pt.X + $joff), [single]($pt.Y + $joff))))
+        }
+        $jpath.AddPolygon($moved.ToArray())
+    }
+    $jb = New-Object System.Drawing.SolidBrush (Get-Color '#2b3444')
+    $g.FillPath($jb, $jpath)
+    $jb.Dispose()
+    $jpath.Dispose()
+
+    # 現在地のドット。弧より前に描いて、地図に隠れないようにする
     $ang = 189.0 * [Math]::PI / 180.0
-    $dot = New-Object System.Drawing.SolidBrush (Get-Color '#ffe0b4')
-    $dr = 20.0 * $k
     $dx = $S/2 + [Math]::Cos($ang) * $ar
     $dy = $S/2 + [Math]::Sin($ang) * $ar
+    $dr = 25.0 * $k
+    $halo = New-Object System.Drawing.SolidBrush (Get-Color '#fdfcf7')
+    $g.FillEllipse($halo, [float]($dx - $dr), [float]($dy - $dr), $dr*2, $dr*2)
+    $halo.Dispose()
+    $dot = New-Object System.Drawing.SolidBrush $accent
+    $dr = 17.0 * $k
     $g.FillEllipse($dot, [float]($dx - $dr), [float]($dy - $dr), $dr*2, $dr*2)
     $dot.Dispose()
-
-    # 車輪
-    $pw = New-Object System.Drawing.Pen($accent, [float](15 * $k))
-    $wr = 66.0 * $k
-    foreach ($cx in @(172.0, 340.0)) {
-        $g.DrawEllipse($pw, [float]($cx*$k - $wr), [float](322*$k - $wr), $wr*2, $wr*2)
-    }
-    $pw.Dispose()
-
-    # フレーム
-    $pf = New-Object System.Drawing.Pen($accent, [float](16 * $k))
-    $pf.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $pf.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
-    # シートステー / シートチューブ / チェーンステー / ダウンチューブ / フォーク / トップチューブ
-    $segments = @()
-    $segments += ,@(172,322,252,236)
-    $segments += ,@(252,236,258,322)
-    $segments += ,@(258,322,172,322)
-    $segments += ,@(258,322,330,240)
-    $segments += ,@(330,240,340,322)
-    $segments += ,@(252,236,330,240)
-    foreach ($seg in $segments) {
-        $g.DrawLine($pf, [float]($seg[0]*$k), [float]($seg[1]*$k), [float]($seg[2]*$k), [float]($seg[3]*$k))
-    }
-    $pf.Dispose()
-
-    # サドルとハンドル
-    $ps = New-Object System.Drawing.Pen($accent, [float](14 * $k))
-    $ps.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $ps.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
-    $g.DrawLine($ps, [float](232*$k), [float](228*$k), [float](272*$k), [float](228*$k))
-    $g.DrawLine($ps, [float](316*$k), [float](230*$k), [float](352*$k), [float](230*$k))
-    $ps.Dispose()
-
-    # クランク
-    $cb = New-Object System.Drawing.SolidBrush $accent
-    $cr = 13.0 * $k
-    $g.FillEllipse($cb, [float](258*$k - $cr), [float](322*$k - $cr), $cr*2, $cr*2)
-    $cb.Dispose()
 
     $g.Dispose()
     $out = Join-Path $outDir $FileName
