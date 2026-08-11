@@ -11,7 +11,21 @@
 
 ## 動かす
 
-### スマホで使う（本番）
+### Android アプリ版（画面を消しても計測できる）
+
+**https://github.com/SOLCF/chari-de-ponichi/releases/download/latest/app-debug.apk**
+
+スマホのブラウザでこのURLを開けば APK が落ちてくる。初回は「提供元不明のアプリ」の
+インストールを許可する必要がある。`main` に push するたびに GitHub Actions が
+自動で作り直し、同じURLに置き換わる。
+
+こちらは Capacitor でネイティブ化してあり、前面サービスで計測を続けるので
+**ポケットに入れて画面を消したままでも記録できる**。走行中は常駐通知が出る（Android の仕様上、消せない）。
+
+**入れ直すときの注意**: debug ビルドはビルドごとに署名鍵が変わるため、上書き更新ができない。
+先に 設定 → 「バックアップを保存」をしてからアンインストールし、入れ直したあとに「復元」すること。
+
+### PWA 版（ブラウザ）
 
 **https://solcf.github.io/chari-de-ponichi/**
 
@@ -21,6 +35,10 @@ Android Chrome でこのURLを開き、メニューから **「ホーム画面�
 初回の走行開始時に位置情報の許可を求められるので「許可」を選ぶ。
 Geolocation API と Service Worker は HTTPS でしか動かないため、
 ローカルのファイルを直接開いても計測はできない。
+
+**画面を消すと計測が止まる**のが Web 側の限界。ハンドルに固定して使う前提。
+アプリ版と PWA 版はデータを共有しない（別アプリ扱い）ので、
+移行するときはバックアップの保存と復元を使う。
 
 ### 更新を反映する
 
@@ -176,22 +194,55 @@ test/geo.test.html       計測ロジックの検証
 
 ---
 
+## Android アプリ版のしくみ
+
+[Capacitor](https://capacitorjs.com/) で同じ Web アセットをネイティブアプリとして包み、
+[`@capacitor-community/background-geolocation`](https://github.com/capacitor-community/background-geolocation)
+の前面サービスで計測を続けている。
+
+**`capacitor.config.json` の `android.useLegacyBridge: true` は外さないこと。**
+これが無いと位置更新が5分で止まるとプラグイン側が明記している。
+
+### バンドラは使っていない
+
+ネイティブ実行時、Capacitor はブリッジを自動で注入するので、
+プラグインは `window.Capacitor.Plugins.BackgroundGeolocation` から直接叩ける。
+npm パッケージが要るのは CLI とネイティブ側のコードのためだけで、`js/*.js` は素のまま。
+
+### 差し替えたのは3箇所だけ
+
+「位置情報を触るのは `js/tracker.js` の中だけ」という制約を最初から守っていたおかげで、
+ネイティブ対応で変えたのは `startPositioning` / `stopPositioning` / 測位点の受け口だけ。
+**フィルタと距離の積算（`processFix` 以降）は実機で検証済みのものをそのまま使っている。**
+
+間引きの判定には実時間ではなく測位点の時刻を使う。ネイティブではまとめて配信されることがあり、
+実時間で見ると同時に届いた点を1つ残して捨ててしまい、その分の距離が消えるため。
+
+### リポジトリの構成
+
+GitHub Pages はリポジトリ直下を配信しているので、その配置は変えていない。
+Capacitor 用には `npm run build`（`scripts/build-www.js`）が `www/` へ必要なものだけを集める。
+`sw.js` は入れない。ネイティブでは WebView がローカルから読むので不要で、
+古いキャッシュを返して更新が届かなくなる事故のもとになる。
+
+### 手元でのビルド
+
+Node.js だけあればプロジェクトの同期まではできる。
+
+```bash
+npm install && npm run sync
+```
+
+APK のビルドには Android SDK が要るので、この PC には入れず GitHub Actions に任せている
+（`.github/workflows/android.yml`）。手元に SDK がある場合は `npm run apk`。
+
 ## いまの制約
 
-ブラウザがバックグラウンドに回ると測位は止まる（Webの仕様上どうにもならない）。
-そのため走行中は Screen Wake Lock API で画面を点けたままにしている。**ハンドルに固定して使う前提**。
-
-中断が起きた場合は復帰時にトーストで知らせ、中断中の移動は距離に加算しない。
-取りこぼしたぶんは設定画面の「距離の手動補正」で足せる。
-
-## この先
-
-ポケットに入れて画面オフのまま計測したくなったら、Capacitor でネイティブ化する。
-そのために次を守ってある。
-
-- 位置情報を触るのは `js/tracker.js` の中だけ。他から `navigator.geolocation` を呼ばない
-- 保存は `js/store.js` 経由のみ
-- パスはすべて相対。外部ライブラリ・CDNへの依存なし
-
-移行時は `tracker.js` の測位部分を background-geolocation プラグインに差し替え、
-`store.js` を Preferences か SQLite に向ければよい。UI とロジックはそのまま使える。
+- **PWA 版は画面を消すと計測が止まる**（Web の仕様上どうにもならない）。
+  中断が起きた場合は復帰時にトーストで知らせ、中断中の移動は距離に加算しない。
+  取りこぼしたぶんは設定画面の「距離の手動補正」で足せる
+- **アプリ版と PWA 版はデータを共有しない**。移行はバックアップの保存と復元で行う
+- **debug ビルドは署名鍵が毎回変わる**ので上書き更新ができない。
+  固定の keystore を GitHub のシークレットに置いて署名すれば解消できる（未対応）
+- Android の「電池の最適化」に引っかかると前面サービスごと止められることがある。
+  計測が途切れるようなら、端末設定でこのアプリを最適化の対象外にする
