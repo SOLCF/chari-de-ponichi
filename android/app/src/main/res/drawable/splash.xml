@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 起動画面。Capacitor 既定のロゴ画像を消して、アプリの地色にアイコンを置いたものに差し替えた。
+     ic_launcher_foreground は中身が中央 66.7% に収まっているので、そのまま中央に置けば収まりが良い。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item>
+        <bitmap
+            android:src="@mipmap/ic_launcher_foreground"
+            android:gravity="center" />
+    </item>
+</layer-list>

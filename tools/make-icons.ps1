@@ -103,8 +103,14 @@ function Draw-Bike {
     $cb.Dispose()
 }
 
+# Shape で外形と中身の縮尺を切り替える
+#   rounded  … 角丸の背景。PWA と Android の旧形式アイコン
+#   circle   … 円形の背景。Android の ic_launcher_round
+#   maskable … 背景は全面、中身は安全域(中央72%)。PWA の maskable
+#   adaptive … 背景は透明、中身は中央66.7%。Android のアダプティブアイコンの前景。
+#              108dp のうち実際に見えるのは中央 72dp なので、そこに収める必要がある
 function New-Icon {
-    param([int]$Size, [bool]$Maskable, [string]$FileName)
+    param([int]$Size, [string]$Shape, [string]$Path)
 
     $S = [float]$Size
     $k = $S / 512.0
@@ -113,37 +119,76 @@ function New-Icon {
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 
     # --- 背景 ---------------------------------------------------------------
-    if (-not $Maskable) {
-        # 通常アイコンは角丸。Android 側でさらに丸められるので控えめにする
+    if ($Shape -eq 'rounded') {
+        # Android 側でさらに丸められるので、角丸は控えめにする
         $r = 112.0 * $k
         $d = $r * 2
-        $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-        $path.AddArc(0, 0, $d, $d, 180, 90)
-        $path.AddArc($S - $d, 0, $d, $d, 270, 90)
-        $path.AddArc($S - $d, $S - $d, $d, $d, 0, 90)
-        $path.AddArc(0, $S - $d, $d, $d, 90, 90)
-        $path.CloseFigure()
-        $g.SetClip($path)
-        $path.Dispose()
+        # 変数名は大小を区別しないので、パラメータ $Path を潰さない名前にする
+        $clip = New-Object System.Drawing.Drawing2D.GraphicsPath
+        $clip.AddArc(0, 0, $d, $d, 180, 90)
+        $clip.AddArc($S - $d, 0, $d, $d, 270, 90)
+        $clip.AddArc($S - $d, $S - $d, $d, $d, 0, 90)
+        $clip.AddArc(0, $S - $d, $d, $d, 90, 90)
+        $clip.CloseFigure()
+        $g.SetClip($clip)
+        $clip.Dispose()
+    } elseif ($Shape -eq 'circle') {
+        $clip = New-Object System.Drawing.Drawing2D.GraphicsPath
+        $clip.AddEllipse(0, 0, $S, $S)
+        $g.SetClip($clip)
+        $clip.Dispose()
     }
 
-    # アプリ本体がライトテーマなので、アイコンも紙の色を基調にする
-    $bg = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
-        (New-Object System.Drawing.PointF(0, 0)),
-        (New-Object System.Drawing.PointF($S, $S)),
-        (Get-Color '#fdfcf7'), (Get-Color '#eee8da'))
-    $g.FillRectangle($bg, 0, 0, $S, $S)
-    $bg.Dispose()
+    # アプリ本体がライトテーマなので、アイコンも紙の色を基調にする。
+    # adaptive の背景は別リソース(ic_launcher_background)が持つので、ここでは塗らない
+    if ($Shape -ne 'adaptive') {
+        $bg = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+            (New-Object System.Drawing.PointF(0, 0)),
+            (New-Object System.Drawing.PointF($S, $S)),
+            (Get-Color '#fdfcf7'), (Get-Color '#eee8da'))
+        $g.FillRectangle($bg, 0, 0, $S, $S)
+        $bg.Dispose()
+    }
 
     # --- 中身 ---------------------------------------------------------------
-    # maskable は端が切り落とされるので、中身を安全域(中央80%)に収める
-    if ($Maskable) {
+    $inner = 1.0
+    if ($Shape -eq 'maskable') { $inner = 0.72 }
+    if ($Shape -eq 'adaptive') { $inner = 0.667 }
+    if ($inner -ne 1.0) {
         $g.TranslateTransform($S/2, $S/2)
-        $g.ScaleTransform(0.72, 0.72)
+        $g.ScaleTransform($inner, $inner)
         $g.TranslateTransform(-($S/2), -($S/2))
     }
 
     $accent = Get-Color '#e07a1e'
+
+    # 通知の小アイコンは Android が白一色に塗り潰すので、地図も自転車も意味を成さない。
+    # 24dp でも形が分かる「一周する軌跡と現在地」だけにする
+    if ($Shape -eq 'notification') {
+        $white = [System.Drawing.Color]::White
+        $np = New-Object System.Drawing.Pen($white, [float](34 * $k))
+        $np.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+        $np.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
+        $nr = 176.0 * $k
+        $g.DrawArc($np, $S/2 - $nr, $S/2 - $nr, $nr*2, $nr*2, -90, 279)
+        $np.Dispose()
+
+        $na = 189.0 * [Math]::PI / 180.0
+        $nb = New-Object System.Drawing.SolidBrush $white
+        $ndr = 40.0 * $k
+        $g.FillEllipse($nb,
+            [float]($S/2 + [Math]::Cos($na) * $nr - $ndr),
+            [float]($S/2 + [Math]::Sin($na) * $nr - $ndr), $ndr*2, $ndr*2)
+        $nb.Dispose()
+
+        $g.Dispose()
+        $dir = Split-Path -Parent $Path
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        $bmp.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+        $bmp.Dispose()
+        Write-Output ("  {0,-34} {1}x{1}" -f (Split-Path -Leaf $Path), $Size)
+        return
+    }
 
     # 日本を一周する軌跡。真上から時計回りに 279 度まわし、先端を現在地とする
     $pen = New-Object System.Drawing.Pen($accent, [float](21 * $k))
@@ -202,14 +247,64 @@ function New-Icon {
     $dot.Dispose()
 
     $g.Dispose()
-    $out = Join-Path $outDir $FileName
-    $bmp.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
+    $dir = Split-Path -Parent $Path
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $bmp.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
     $bmp.Dispose()
-    Write-Output "  $FileName  ($Size x $Size)"
+    Write-Output ("  {0,-34} {1}x{1}" -f (Split-Path -Leaf $Path), $Size)
 }
 
-Write-Output 'アイコンを生成します:'
-New-Icon -Size 192 -Maskable $false -FileName 'icon-192.png'
-New-Icon -Size 512 -Maskable $false -FileName 'icon-512.png'
-New-Icon -Size 512 -Maskable $true  -FileName 'icon-maskable-512.png'
-Write-Output "完了: $outDir"
+Write-Output 'PWA 用:'
+New-Icon -Size 192 -Shape 'rounded'  -Path (Join-Path $outDir 'icon-192.png')
+New-Icon -Size 512 -Shape 'rounded'  -Path (Join-Path $outDir 'icon-512.png')
+New-Icon -Size 512 -Shape 'maskable' -Path (Join-Path $outDir 'icon-maskable-512.png')
+
+# Android のランチャーアイコン。android/ が生成済みのときだけ書き込む
+$resDir = Join-Path $root 'android\app\src\main\res'
+if (Test-Path $resDir) {
+    Write-Output ''
+    Write-Output 'Android 用:'
+
+    # 密度ごとの一辺。前景は 108dp 相当なので、旧形式アイコンの 2.25 倍になる
+    $densities = @()
+    $densities += ,@('mdpi',    48,  108)
+    $densities += ,@('hdpi',    72,  162)
+    $densities += ,@('xhdpi',   96,  216)
+    $densities += ,@('xxhdpi',  144, 324)
+    $densities += ,@('xxxhdpi', 192, 432)
+
+    foreach ($d in $densities) {
+        $dir = Join-Path $resDir ('mipmap-' + $d[0])
+        New-Icon -Size $d[1] -Shape 'rounded'  -Path (Join-Path $dir 'ic_launcher.png')
+        New-Icon -Size $d[1] -Shape 'circle'   -Path (Join-Path $dir 'ic_launcher_round.png')
+        New-Icon -Size $d[2] -Shape 'adaptive' -Path (Join-Path $dir 'ic_launcher_foreground.png')
+    }
+
+    # 通知の小アイコン。Android は非透明部分を白一色に塗り潰すので、透明の上に白で描く
+    $notif = @()
+    $notif += ,@('mdpi',    24)
+    $notif += ,@('hdpi',    36)
+    $notif += ,@('xhdpi',   48)
+    $notif += ,@('xxhdpi',  72)
+    $notif += ,@('xxxhdpi', 96)
+    foreach ($n in $notif) {
+        $dir = Join-Path $resDir ('drawable-' + $n[0])
+        New-Icon -Size $n[1] -Shape 'notification' -Path (Join-Path $dir 'ic_stat_ponichi.png')
+    }
+
+    # アダプティブアイコンの背景色（前景が透明なので、ここが下地になる）と、
+    # 起動画面の地色。どちらもアプリのライトテーマと同じ紙の色に合わせる
+    $bgXml = @'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#F7F5F0</color>
+    <color name="splash_background">#F7F5F0</color>
+</resources>
+'@
+    $bgPath = Join-Path $resDir 'values\ic_launcher_background.xml'
+    [System.IO.File]::WriteAllText($bgPath, $bgXml, [System.Text.UTF8Encoding]::new($false))
+    Write-Output '  ic_launcher_background.xml         #F7F5F0'
+}
+
+Write-Output ''
+Write-Output '完了'

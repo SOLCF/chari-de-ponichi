@@ -16,6 +16,12 @@
   // （毎回起動し直すと初回測位のたびに電力を食うため）
   var CONTINUOUS_MAX_SEC = 10;
 
+  // ネイティブ時、この距離だけ動くまで OS 側が通知を上げない。
+  // 静止中の測位を丸ごと省けるので電池に効く。
+  // ノイズ判定のしきい値（両点の精度の和＝おおむね20〜40m）より小さくしてあるので、
+  // 距離計算に使えたはずの点を取りこぼすことはない
+  var NATIVE_DISTANCE_FILTER_M = 10;
+
   var state = {
     status: 'idle',      // idle | acquiring | tracking
     sessionMeters: 0,
@@ -29,6 +35,7 @@
     rejectCount: 0,
     gapNoticeSec: 0,     // 直近で検出した計測中断の長さ（UIで一度だけ知らせる）
     error: null,
+    needsSettings: false,  // 権限を拒否された。端末の設定画面へ誘導する
     wakeLockActive: false
   };
 
@@ -37,10 +44,12 @@
   var watchId = null;
   var timer = null;
   var tickStartedAt = 0;
-  var lastProcessedAt = 0;
+  var lastFixTime = 0;   // 直前に処理した測位点の時刻。間引きの基準（実時間ではない）
   var wakeLock = null;
   var listeners = [];
   var uiTimer = null;
+  var nativeWatchId = null;
+  var nativeWatchToken = 0;
 
   /* ---------- 公開 API ---------- */
 
@@ -54,10 +63,27 @@
       if (global.document.visibilityState === 'visible' && state.status === 'tracking') {
         requestWakeLock();
         // バックグラウンドに落ちている間、測位ループのタイマーも止まっている。
-        // 復帰したら即座に測り直す
-        if (isDutyCycleMode()) armTimer(0);
+        // 復帰したら即座に測り直す。
+        // ネイティブでは前面サービスが動き続けているので、やり直す必要はない
+        if (!isNative() && isDutyCycleMode()) armTimer(0);
       }
     });
+  }
+
+  /* ---------- 実行環境 ---------- */
+
+  /* Capacitor でネイティブとして動いているか。
+   * ネイティブではブリッジが自動で注入されるので、バンドラを使わずに
+   * window.Capacitor.Plugins からプラグインを直接叩ける */
+  function isNative() {
+    return !!(global.Capacitor &&
+              typeof global.Capacitor.isNativePlatform === 'function' &&
+              global.Capacitor.isNativePlatform());
+  }
+
+  function nativePlugin() {
+    return (global.Capacitor && global.Capacitor.Plugins &&
+            global.Capacitor.Plugins.BackgroundGeolocation) || null;
   }
 
   function onChange(fn) {
@@ -71,6 +97,7 @@
   function getState() { return state; }
 
   function isSupported() {
+    if (isNative()) return !!nativePlugin();
     return !!(global.navigator && global.navigator.geolocation);
   }
 
@@ -93,7 +120,7 @@
     };
 
     anchor = null;
-    lastProcessedAt = 0;
+    lastFixTime = 0;
     state.status = 'acquiring';
     state.sessionMeters = 0;
     state.elapsedSec = 0;
@@ -106,6 +133,7 @@
     state.rejectCount = 0;
     state.gapNoticeSec = 0;
     state.error = null;
+    state.needsSettings = false;
 
     startPositioning();
     requestWakeLock();
@@ -176,12 +204,15 @@
   }
 
   function startPositioning() {
-    if (isDutyCycleMode()) {
+    if (isNative()) {
+      // ネイティブ: 前面サービスに任せる。画面が消えても止まらない
+      startNative();
+    } else if (isDutyCycleMode()) {
       // 間隔が長いとき: 1点取ったら GPS を解放し、次の周期まで休ませる
       armTimer(0);
     } else {
       // 間隔が短いとき: measure しっぱなしにして GPS を温かい状態に保つ。
-      // 届いた点のうち、間隔に満たないものは processFix 側で間引く
+      // 届いた点のうち、間隔に満たないものは handleFix 側で間引く
       watchId = global.navigator.geolocation.watchPosition(
         onPosition, onPositionError, posOptions(30000)
       );
@@ -189,11 +220,56 @@
   }
 
   function stopPositioning() {
+    stopNative();
     if (watchId !== null) {
       global.navigator.geolocation.clearWatch(watchId);
       watchId = null;
     }
     if (timer) { global.clearTimeout(timer); timer = null; }
+  }
+
+  /* ---------- ネイティブの測位（前面サービス） ---------- */
+
+  function startNative() {
+    var bg = nativePlugin();
+    if (!bg) {
+      state.error = '位置情報の機能を読み込めませんでした';
+      emit();
+      return;
+    }
+
+    // addWatcher の解決を待つ間に停止されることがある。
+    // トークンで世代を見て、古い watcher は解決と同時に捨てる
+    var token = ++nativeWatchToken;
+
+    bg.addWatcher({
+      backgroundTitle: 'チャリでポンイチ',
+      backgroundMessage: '日本一周に向けて記録中',
+      requestPermissions: true,
+      stale: false,
+      distanceFilter: NATIVE_DISTANCE_FILTER_M
+    }, onNativePosition).then(function (id) {
+      if (token !== nativeWatchToken) { bg.removeWatcher({ id: id }); return; }
+      nativeWatchId = id;
+    }).catch(function () {
+      state.error = '位置情報の取得を開始できませんでした';
+      emit();
+    });
+  }
+
+  function stopNative() {
+    nativeWatchToken++;
+    var bg = nativePlugin();
+    if (bg && nativeWatchId) {
+      try { bg.removeWatcher({ id: nativeWatchId }); } catch (e) { /* 無視 */ }
+    }
+    nativeWatchId = null;
+  }
+
+  /* 端末の設定画面を開く。権限を拒否されたときの逃げ道 */
+  function openLocationSettings() {
+    var bg = nativePlugin();
+    if (bg && bg.openSettings) bg.openSettings();
   }
 
   function armTimer(waitMs) {
@@ -222,24 +298,45 @@
   }
 
   function onPosition(pos) {
-    var intervalMs = settings.get().intervalSec * 1000;
-
-    // 常時測位モードでは、設定間隔より細かく届いた点を間引く。
-    // 0.8 を掛けているのは端末側の揺らぎで毎回わずかに早着するのを許すため
-    if (!isDutyCycleMode() && lastProcessedAt &&
-        (Date.now() - lastProcessedAt) < intervalMs * 0.8) {
-      return;
-    }
-    lastProcessedAt = Date.now();
-
-    processFix({
+    handleFix({
       lat: pos.coords.latitude,
       lon: pos.coords.longitude,
       acc: pos.coords.accuracy,
       // 端末がドップラー由来の速度を返すならそちらの方が正確なので表示に使う
       devSpeed: (pos.coords.speed != null && isFinite(pos.coords.speed)) ? pos.coords.speed : null,
       t: pos.timestamp || Date.now()
-    });
+    }, !isDutyCycleMode());
+  }
+
+  /* プラグインからの測位。第2引数にエラーが入ることがある */
+  function onNativePosition(location, err) {
+    if (err) { onNativeError(err); return; }
+    if (!location) return;
+
+    handleFix({
+      lat: location.latitude,
+      lon: location.longitude,
+      acc: location.accuracy,
+      devSpeed: (location.speed != null && isFinite(location.speed)) ? location.speed : null,
+      t: location.time || Date.now()
+    }, true);   // プラグインは動いた分だけ次々に上げてくるので、必ず間引く
+  }
+
+  /* 測位点を1件受け取る。Web もネイティブもここへ集約し、
+   * これ以降のフィルタと距離の積算（processFix）は共通のものを使う。 */
+  function handleFix(fix, throttle) {
+    // 設定間隔より細かく届いた点を間引く。
+    // 0.8 を掛けているのは端末側の揺らぎで毎回わずかに早着するのを許すため。
+    //
+    // 判定に使うのは実時間ではなく測位点の時刻。
+    // ネイティブではまとめて配信されることがあり、実時間で見ると
+    // 同時に届いた点を1つ残して捨ててしまい、その分の距離が消える
+    if (throttle && lastFixTime) {
+      var intervalMs = settings.get().intervalSec * 1000;
+      if ((fix.t - lastFixTime) < intervalMs * 0.8) return;
+    }
+    lastFixTime = fix.t;
+    processFix(fix);
   }
 
   function processFix(fix) {
@@ -287,6 +384,17 @@
       state.status = 'tracking';
     }
     state.error = null;
+    emit();
+  }
+
+  function onNativeError(err) {
+    if (err && err.code === 'NOT_AUTHORIZED') {
+      state.error = '位置情報の利用が許可されていません。設定から許可してください。';
+      state.needsSettings = true;
+      stop();
+      return;
+    }
+    state.error = '位置情報の取得に失敗しました';
     emit();
   }
 
@@ -352,6 +460,8 @@
     onChange: onChange,
     getState: getState,
     isSupported: isSupported,
+    isNative: isNative,
+    openLocationSettings: openLocationSettings,
     consumeGapNotice: consumeGapNotice,
     CONTINUOUS_MAX_SEC: CONTINUOUS_MAX_SEC
   };

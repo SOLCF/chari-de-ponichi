@@ -1,0 +1,48 @@
+name: Android APK
+
+# ubuntu-latest には Android SDK が入っているので、ここでの導入は不要。
+# 手元に Android SDK を入れずに APK を作るための仕組み。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # AGP 8.7 / Gradle 8.11 は JDK 21 を前提にしている
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: 依存を入れる
+        run: npm ci
+
+      # www/ は生成物なのでコミットしていない。ここで作る
+      - name: 配信ファイルを www へ集める
+        run: npm run build
+
+      - name: Capacitor を同期する
+        run: npx cap sync android
+
+      - name: APK をビルドする
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chari-de-ponichi-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

@@ -188,6 +188,9 @@
   /* ---------- Service Worker ---------- */
 
   function registerServiceWorker() {
+    // ネイティブでは WebView がローカルから読むので Service Worker は不要。
+    // 登録すると古いキャッシュを返して更新が端末に届かなくなる（sw.js も同梱していない）
+    if (CP.tracker.isNative()) return;
     if (!('serviceWorker' in global.navigator)) return;
     // file:// で開いたときは登録できない。開発中に落ちても困るので握りつぶす
     global.navigator.serviceWorker.register('sw.js').catch(function () { /* 無視 */ });

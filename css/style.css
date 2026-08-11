@@ -87,7 +87,6 @@ body { min-height: 100vh; }
 
 /* ---------- ビュー切り替え ---------- */
 .view { display: none; padding: 0 18px 24px; }
-#view-home { position: relative; overflow: hidden; }   /* 背景の日本地図の基準 */
 .view.is-active { display: block; animation: fade .18s ease-out; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
@@ -108,7 +107,9 @@ body { min-height: 100vh; }
 
 /* ---------- 進捗リング ---------- */
 .ring-wrap { position: relative; width: 100%; max-width: 300px; margin: 6px auto 2px; }
-.ring { width: 100%; display: block; transform: rotate(-90deg); }
+/* 絶対配置の .jp-bg は、何もしないと静的配置の .ring より前面に描かれる。
+   重ね順は 地図 → リング → 数字 の順に固定する */
+.ring { width: 100%; display: block; transform: rotate(-90deg); position: relative; z-index: 1; }
 .ring circle { fill: none; stroke-width: 13; stroke-linecap: round; }
 .ring-track { stroke: var(--ring-track); }
 .ring-bar {
@@ -120,22 +121,21 @@ body { min-height: 100vh; }
 }
 
 /* 背景の日本地図。走行画面の主役はあくまで数字なので、
-   輪郭が分かる程度まで薄くして、指の操作も拾わないようにする */
+   輪郭が分かる程度まで薄くして、指の操作も拾わないようにする。
+
+   位置は .ring-wrap 任せにしてある。章ヘッダの高さはセーフエリアの inset で
+   端末ごとに変わるので、top を決め打ちするとリングとの同心が崩れる。
+   inset:0 + margin:auto なら、どの端末でも必ずリングと同心になる。 */
 .jp-bg {
   position: absolute;
-  top: 74px;
-  left: 50%;
-  transform: translateX(-50%);
-  height: 420px;
+  inset: 0;
+  margin: auto;
+  height: 100%;      /* .ring-wrap の高さ = リング外径 */
   width: auto;
   z-index: 0;
   pointer-events: none;
   opacity: 0;
   transition: opacity .6s ease;
-  /* 下は「次のマイルストーン」カードに重なる。カードは不透明なので、
-     何もしないとカードの左右で地図が直線的に切れて見える。手前で溶かしておく */
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 88%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 88%);
 }
 .jp-bg.is-ready { opacity: 1; }
 .jp-bg path {
@@ -148,11 +148,10 @@ body { min-height: 100vh; }
   stroke-linejoin: round;
 }
 
-/* 地図より前に出す。地図だけは z-index の対象外にする */
-#view-home > *:not(.jp-bg) { position: relative; z-index: 1; }
 .ring-center {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -230,6 +229,7 @@ body { min-height: 100vh; }
   color: var(--bad);
   font-size: 13px;
 }
+.error-msg.is-tappable { cursor: pointer; text-decoration: underline; }
 
 /* ---------- スタート/ストップ ---------- */
 .action { margin-top: 16px; text-align: center; }

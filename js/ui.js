@@ -126,13 +126,26 @@
     el('liveStats').hidden = !running;
     el('btnLabel').textContent = running ? 'ストップ' : 'スタート';
     el('btnStartStop').classList.toggle('is-stop', running);
-    el('actionHint').textContent = running
-      ? (st.wakeLockActive ? '画面が消えないようにしています' : '画面が消えると計測が止まります')
-      : '走り出す前にスタートを押してください';
+    // ネイティブでは前面サービスが動くので、画面を消しても止まらない。
+    // Web と同じ文言のままだと嘘になる
+    if (!running) {
+      el('actionHint').textContent = '走り出す前にスタートを押してください';
+    } else if (tracker.isNative()) {
+      el('actionHint').textContent = '画面を消してポケットに入れても計測を続けます';
+    } else {
+      el('actionHint').textContent = st.wakeLockActive
+        ? '画面が消えないようにしています'
+        : '画面が消えると計測が止まります';
+    }
 
     var err = el('errorMsg');
     err.hidden = !st.error;
-    if (st.error) err.textContent = st.error;
+    if (st.error) {
+      err.textContent = st.error;
+      // 権限を拒否されたときは、押せば端末の設定画面へ飛べるようにする
+      err.classList.toggle('is-tappable', !!st.needsSettings);
+      err.onclick = st.needsSettings ? function () { tracker.openLocationSettings(); } : null;
+    }
 
     if (!running) return;
 
@@ -482,6 +495,11 @@
     el('optHighAccuracy').checked = !!s.highAccuracy;
     el('optKeepAwake').checked = !!s.keepAwake;
     el('optTheme').value = s.theme;
+
+    // ネイティブでは画面を消しても計測が続くので、この設定は「見やすさ」の話になる
+    el('keepAwakeHelp').textContent = tracker.isNative()
+      ? '計測は画面を消しても続きます。走行中に画面を見ていたいときだけ入れてください。'
+      : '画面が消えると計測が止まります。ハンドルに固定して使う想定です。';
 
     var ov = s.goalOverrides || {};
     var inputs = doc.querySelectorAll('input[data-goal]');

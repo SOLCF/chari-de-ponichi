@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">チャリでポンイチ</string>
+    <string name="title_activity_main">チャリでポンイチ</string>
+    <string name="package_name">io.github.solcf.charideponichi</string>
+    <string name="custom_url_scheme">io.github.solcf.charideponichi</string>
+
+    <!-- バックグラウンド計測中に出る常駐通知の見た目。
+         プラグイン(@capacitor-community/background-geolocation)がこの名前で参照する。
+         色も文字列として読み取られ、Color.parseColor に渡される。 -->
+    <string name="capacitor_background_geolocation_notification_channel_name">走行距離の計測</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_ponichi</string>
+    <string name="capacitor_background_geolocation_notification_color">#e07a1e</string>
+</resources>

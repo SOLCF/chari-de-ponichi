@@ -1,0 +1,18 @@
+# Node
+node_modules/
+
+# scripts/build-www.js が作る生成物。GitHub Pages はリポジトリ直下を配信するので
+# www/ は Capacitor のためだけに存在する
+www/
+
+# Capacitor / Gradle の生成物
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/app/capacitor.build.gradle
+android/capacitor.settings.gradle

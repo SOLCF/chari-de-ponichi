@@ -92,15 +92,22 @@
     return 'あと約' + bigJa(Math.round(years)) + '年';
   }
 
-  /* 進捗の百分率。1光年の章では 1.41e-11% のような指数表記になってしまうので、
-   * 桁に応じて小数点以下を伸ばし、それでも表せない小ささは「未満」で丸める。 */
+  /* 進捗の百分率。桁は小数第5位で固定する。
+   * 走るたびに末尾が動くのが見えることが、遠い目標に向かう上での支えになる。
+   *
+   * ただし火星・1光年の章は5桁でも全て 0 になってしまう。
+   * それでは「わずかでも進んでいる」ことが見えないので、
+   * その場合だけ最初の有効数字が出るまで桁を伸ばす。 */
+  var PCT_DIGITS = 5;
+
   function pct(v) {
     if (!isFinite(v) || v <= 0) return '0%';
-    if (v >= 10) return v.toFixed(1) + '%';
-    if (v >= 1) return v.toFixed(2) + '%';
-    if (v >= 0.01) return v.toFixed(3) + '%';
-    if (v >= 0.0001) return v.toFixed(5) + '%';
-    return '0.0001%未満';
+
+    var digits = PCT_DIGITS;
+    // 1e-21 は toFixed の上限 100 桁に収まる範囲での歯止め
+    while (Number(v.toFixed(digits)) === 0 && digits < 24) digits++;
+
+    return v.toFixed(digits) + '%';
   }
 
   function pad(n) { return n < 10 ? '0' + n : String(n); }
