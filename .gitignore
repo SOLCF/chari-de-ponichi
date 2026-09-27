@@ -16,3 +16,7 @@ android/app/src/main/assets/capacitor.config.json
 android/app/src/main/assets/capacitor.plugins.json
 android/app/capacitor.build.gradle
 android/capacitor.settings.gradle
+
+# 署名鍵。ここが漏れると誰でもこのアプリの「更新」を配れてしまうので絶対にコミットしない。
+# 逆に失うと二度と上書き更新できなくなるので、別の場所へバックアップすること。
+keystore/

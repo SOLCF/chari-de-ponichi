@@ -1,5 +1,9 @@
 apply plugin: 'com.android.application'
 
+// CI からビルド番号を受け取る。versionCode が据え置きだと、端末が古い版とみなして
+// 更新を弾くことがあるため、ビルドごとに必ず増やす
+def buildNumber = System.getenv("BUILD_NUMBER")
+
 android {
     namespace "io.github.solcf.charideponichi"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,7 +11,7 @@ android {
         applicationId "io.github.solcf.charideponichi"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode buildNumber ? buildNumber.toInteger() : 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -16,10 +20,31 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // 署名鍵は環境変数から受け取る。鍵そのものもパスワードもリポジトリには置かない
+    // （keystore/ は .gitignore 済み、CI は GitHub のシークレットから復元する）。
+    //
+    // 固定の鍵で署名することが重要。debug ビルドの鍵はビルドごとに変わるため、
+    // 更新のたびにアンインストールが必要になり、そのたびに走行記録が消えてしまう。
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv("KEYSTORE_PATH")
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS") ?: "ponichi"
+                keyPassword System.getenv("KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // 鍵が無い環境では署名なしの APK ができる。端末には入らないので事故にはならない
+            if (System.getenv("KEYSTORE_PATH")) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

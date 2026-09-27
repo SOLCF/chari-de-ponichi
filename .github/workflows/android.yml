@@ -39,16 +39,45 @@ jobs:
       - name: Capacitor を同期する
         run: npx cap sync android
 
+      # 固定の鍵で署名する。debug ビルドの鍵はビルドごとに変わるので、
+      # 更新のたびにアンインストール＝走行記録の全消去になってしまう
+      - name: 署名鍵を取り出す
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 が未設定です。署名できません。"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
       - name: APK をビルドする
         working-directory: android
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ponichi
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      # 毎回同じ鍵で署名できているかは、指紋を見れば分かる。
+      # ここが前回と変わっていたら、上書き更新できない APK ができている
+      - name: 署名を確かめる
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK"
+
+      - name: 鍵を消す
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
 
       - uses: actions/upload-artifact@v5
         with:
           name: chari-de-ponichi-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       # 成果物のダウンロードはログインと zip の展開が要る。
@@ -57,15 +86,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          APK=android/app/build/outputs/apk/release/app-release.apk
           NOTES="main の最新コミットから自動生成した APK です。
 
+          バージョン: ${{ github.run_number }}
           コミット: ${{ github.sha }}
           ビルド日時: $(date -u '+%Y-%m-%d %H:%M UTC')
 
-          debug ビルドのため、ビルドごとに署名鍵が変わります。
-          入れ直すときは先にアプリ内の 設定 → バックアップを保存 をしてから、
-          一度アンインストールしてください。"
+          固定の鍵で署名しているので、上書きインストールで更新できます。
+          記録は消えません。"
 
           if gh release view latest >/dev/null 2>&1; then
             gh release edit latest --notes "$NOTES"
