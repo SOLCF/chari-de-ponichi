@@ -216,6 +216,28 @@
     });
   }
 
+  /* ---------- 一度きりの表示フラグ ---------- */
+
+  /* 献辞のように「一度見たら二度と出さない」ものの記録。
+   * 走行データではないのでバックアップには含めない。
+   * 端末を変えたら献辞がもう一度出るが、それはむしろ自然なので構わない。 */
+  var FLAG_PREFIX = 'chari-pon-ichi:flag:';
+
+  function hasFlag(name) {
+    try {
+      return global.localStorage.getItem(FLAG_PREFIX + name) === '1';
+    } catch (e) {
+      // プライベートモード等で読めないときは「まだ見ていない」扱いにする
+      return false;
+    }
+  }
+
+  function setFlag(name) {
+    try {
+      global.localStorage.setItem(FLAG_PREFIX + name, '1');
+    } catch (e) { /* 保存できなくても実害はない */ }
+  }
+
   /* ---------- エクスポート / インポート / リセット ---------- */
 
   function exportAll() {
@@ -298,6 +320,8 @@
     deleteSession: deleteSession,
     appendPoint: appendPoint,
     getPoints: getPoints,
+    hasFlag: hasFlag,
+    setFlag: setFlag,
     exportAll: exportAll,
     importAll: importAll,
     resetAll: resetAll

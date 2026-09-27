@@ -24,7 +24,12 @@
 
     CP.tracker.onChange(onTrackerChange);
     CP.ui.renderHome();
-    el('appVersion').textContent = 'チャリでポンイチ v' + VERSION;
+    el('appVersion').textContent = 'v' + VERSION;
+
+    // 献辞は初回だけ。閉じた時点で記録する
+    if (!CP.store.hasFlag('dedication')) {
+      el('dedication').hidden = false;
+    }
 
     if (global.matchMedia) {
       global.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
@@ -62,6 +67,11 @@
 
     el('celClose').addEventListener('click', function () {
       CP.ui.closeCelebration();
+    });
+
+    el('dedicationClose').addEventListener('click', function () {
+      el('dedication').hidden = true;
+      CP.store.setFlag('dedication');
     });
 
     // 走行中に戻ってきたとき、止まっていた間の状況を伝える

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>チャリでポンイチ — 贈呈カード</title>
+<style>
+  /* A4 に A5 のカードを1枚。家庭用プリンタでそのまま刷れる。
+     切り取り線に沿って切ると A5 のカードになる */
+  @page { size: A4 portrait; margin: 0; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+    background: #d8d4cc;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    color: #1d2430;
+  }
+
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 切り取り線。印刷したとき薄く出る程度にとどめる */
+  .card {
+    width: 148mm;
+    height: 210mm;
+    border: 1px dashed #c9c2b4;
+    background: linear-gradient(160deg, #fdfcf7 0%, #f4efe3 100%);
+    padding: 12mm 13mm;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .icon { width: 26mm; height: 26mm; margin: 0 auto; border-radius: 6mm; }
+
+  .app-name {
+    font-size: 24pt;
+    font-weight: 700;
+    letter-spacing: .06em;
+    margin-top: 6mm;
+  }
+  .tagline { font-size: 10pt; color: #6b6558; margin-top: 2mm; letter-spacing: .04em; }
+
+  .rule { border: 0; border-top: 1px solid #ded7c8; margin: 5mm 0; }
+
+  .story { font-size: 10.5pt; line-height: 1.95; color: #3a4150; }
+  .story b { font-weight: 700; }
+
+  .message {
+    font-size: 11pt;
+    line-height: 2.0;
+    margin-top: 5mm;
+    color: #1d2430;
+  }
+
+  /* margin-top:auto で QR とクレジットをカードの下端に寄せる。
+     余白は中ほどに集まり、下がきちんと揃う */
+  .install {
+    display: flex;
+    gap: 6mm;
+    align-items: center;
+    text-align: left;
+    margin-top: auto;
+    padding-top: 4mm;
+  }
+  .qr { width: 30mm; height: 30mm; flex: none; }
+  .qr rect { fill: #fff; }
+  .qr path { stroke: #1d2430; }
+
+  .steps { font-size: 8.5pt; line-height: 1.85; color: #3a4150; }
+  .steps b { display: block; font-size: 9.5pt; margin-bottom: 1.5mm; }
+  .steps ol { margin: 0; padding-left: 1.2em; }
+
+  .credits {
+    margin-top: 5mm;
+    padding-top: 4mm;
+    border-top: 1px solid #ded7c8;
+    display: inline-block;
+    text-align: left;
+    align-self: center;
+  }
+  .credit-row { display: flex; gap: 5mm; align-items: baseline; margin-bottom: 1.5mm; }
+  .credit-label {
+    font-size: 7.5pt; color: #6b6558; letter-spacing: .16em; width: 7mm; flex: none;
+  }
+  .credit-value { font-size: 12pt; }
+  .credit-value em { font-size: 8pt; color: #6b6558; font-style: normal; }
+  .date { font-size: 8.5pt; color: #6b6558; margin-top: 2.5mm; padding-left: 12mm; }
+
+  @media print {
+    body { background: #fff; padding: 0; display: block; }
+    .sheet { width: auto; height: auto; }
+    .card { border-color: #e4ded1; }
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="card">
+      <img class="icon" src="../../icons/icon-512.png" alt="">
+
+      <div class="app-name">チャリでポンイチ</div>
+      <div class="tagline">日本一周から、その先へ。</div>
+
+      <hr class="rule">
+
+      <div class="story">
+        自転車で、日本を一周する。<br>
+        <b>12,000 km</b> を走りきったら、次は世界一周。<br>
+        その次は月、火星、そして <b>1光年</b>。
+      </div>
+
+      <div class="message">
+        いつも走っているあなたに。<br>これからは、その距離が旅になります。
+      </div>
+
+      <hr class="rule">
+
+      <div class="install">
+        <svg class="qr" viewBox="0 0 45 45" shape-rendering="crispEdges"><path stroke="#000000" d="M4 4.5h7m3 0h2m1 0h1m1 0h1m1 0h1m1 0h2m2 0h1m4 0h1m1 0h7M4 5.5h1m5 0h1m5 0h3m1 0h1m3 0h1m1 0h1m2 0h1m1 0h2m1 0h1m5 0h1M4 6.5h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h1m1 0h2m4 0h3m2 0h2m2 0h1m1 0h3m1 0h1M4 7.5h1m1 0h3m1 0h1m1 0h1m4 0h1m1 0h1m1 0h1m4 0h6m2 0h1m1 0h3m1 0h1M4 8.5h1m1 0h3m1 0h1m1 0h2m4 0h1m1 0h1m2 0h1m1 0h1m1 0h2m3 0h1m1 0h1m1 0h3m1 0h1M4 9.5h1m5 0h1m1 0h1m2 0h1m1 0h1m1 0h4m1 0h2m2 0h1m1 0h2m2 0h1m5 0h1M4 10.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M12 11.5h3m2 0h1m6 0h4m4 0h1M4 12.5h1m1 0h5m2 0h1m1 0h7m4 0h1m1 0h2m4 0h5M5 13.5h1m1 0h3m1 0h1m2 0h1m4 0h1m2 0h8m2 0h1m2 0h1m2 0h2M5 14.5h1m1 0h2m1 0h1m2 0h2m1 0h1m1 0h3m1 0h1m1 0h1m3 0h10m1 0h2M6 15.5h3m2 0h1m2 0h3m1 0h2m2 0h1m1 0h3m3 0h1m1 0h2m1 0h2m3 0h1M4 16.5h2m1 0h1m2 0h7m1 0h2m1 0h1m4 0h1m1 0h3m2 0h2m1 0h5M4 17.5h3m1 0h1m4 0h1m1 0h2m5 0h4m3 0h1m5 0h1M4 18.5h1m1 0h6m1 0h2m3 0h3m4 0h1m3 0h3m1 0h5m1 0h2M4 19.5h2m1 0h2m2 0h1m2 0h2m1 0h1m1 0h1m4 0h2m1 0h2m1 0h1m3 0h3m2 0h2M6 20.5h2m2 0h1m2 0h1m1 0h4m2 0h2m3 0h1m2 0h3m1 0h2m1 0h1m1 0h3M6 21.5h1m1 0h2m1 0h1m4 0h1m1 0h7m1 0h2m1 0h1m2 0h1m6 0h1M5 22.5h1m1 0h1m1 0h4m1 0h2m1 0h2m2 0h1m3 0h1m4 0h2m3 0h2m2 0h2M7 23.5h1m4 0h2m3 0h1m2 0h1m3 0h2m1 0h2m1 0h5m5 0h1M4 24.5h1m2 0h1m2 0h1m1 0h1m8 0h1m1 0h1m2 0h1m1 0h2m3 0h2m1 0h3M5 25.5h3m1 0h1m2 0h1m2 0h1m1 0h2m1 0h6m3 0h1m2 0h2m3 0h1M4 26.5h2m2 0h3m3 0h3m2 0h1m1 0h1m2 0h2m2 0h1m1 0h4m1 0h3m1 0h2M12 27.5h5m1 0h2m2 0h1m1 0h2m5 0h3m1 0h2M4 28.5h1m1 0h1m1 0h3m2 0h4m4 0h1m1 0h1m3 0h1m1 0h3m1 0h4m1 0h1m1 0h1M4 29.5h1m3 0h2m2 0h6m1 0h1m1 0h5m1 0h1m1 0h1m2 0h2m1 0h1m1 0h1M4 30.5h1m1 0h1m1 0h3m4 0h1m2 0h4m2 0h2m3 0h3m1 0h3m3 0h2M4 31.5h1m1 0h2m1 0h1m1 0h8m3 0h1m1 0h3m3 0h1m1 0h1m1 0h2M4 32.5h1m2 0h6m1 0h3m1 0h1m2 0h1m4 0h1m1 0h1m1 0h1m1 0h5m1 0h1m1 0h1M12 33.5h1m2 0h2m1 0h1m1 0h1m1 0h2m2 0h1m3 0h1m1 0h1m3 0h2m1 0h1M4 34.5h7m4 0h1m1 0h4m1 0h1m1 0h3m5 0h1m1 0h1m1 0h1m1 0h3M4 35.5h1m5 0h1m1 0h1m3 0h3m6 0h3m2 0h1m1 0h1m3 0h2m1 0h1M4 36.5h1m1 0h3m1 0h1m1 0h1m3 0h4m1 0h1m1 0h1m2 0h11m1 0h2M4 37.5h1m1 0h3m1 0h1m1 0h7m1 0h2m1 0h5m2 0h2m1 0h2m1 0h2m1 0h2M4 38.5h1m1 0h3m1 0h1m1 0h2m1 0h2m2 0h1m2 0h1m5 0h2m1 0h2m5 0h3M4 39.5h1m5 0h1m2 0h5m1 0h1m3 0h1m1 0h1m4 0h5m1 0h1m3 0h1M4 40.5h7m1 0h3m1 0h1m2 0h1m1 0h1m4 0h1m1 0h1m1 0h1m2 0h1m2 0h5"/></svg>
+        <div class="steps">
+          <b>入れかた</b>
+          <ol>
+            <li>スマホのカメラでQRを読む</li>
+            <li>ダウンロードしたファイルを開く</li>
+            <li>「提供元不明のアプリ」を許可する</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="credits">
+
+        <div class="credit-row">
+          <span class="credit-label">原案</span>
+          <span class="credit-value">Daïsuké K. <em>〈Le Randonneur〉</em></span>
+        </div>
+        <div class="credit-row">
+          <span class="credit-label">製作</span>
+          <span class="credit-value">芥川</span>
+        </div>
+        <div class="date">2026年10月</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

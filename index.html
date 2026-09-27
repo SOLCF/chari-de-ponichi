@@ -172,6 +172,17 @@
       <div class="btn-row">
         <button type="button" class="btn-sub btn-danger" id="btnReset">すべてのデータを消す</button>
       </div>
+    </div>
+
+    <div class="group credits">
+      <h2 class="group-title">このアプリについて</h2>
+      <div class="credit-name">チャリでポンイチ</div>
+      <p class="credit-tagline">日本一周から、その先へ。</p>
+      <dl class="credit-list">
+        <dt>原案</dt><dd>Daïsuké K. <span class="credit-alias">〈Le Randonneur〉</span></dd>
+        <dt>製作</dt><dd>芥川</dd>
+        <dt></dt><dd class="credit-date">2026年10月</dd>
+      </dl>
       <p class="group-note" id="appVersion"></p>
     </div>
   </section>
@@ -201,6 +212,28 @@
     <div class="celebrate-name" id="celName"></div>
     <div class="celebrate-sub" id="celSub"></div>
     <button type="button" class="btn-main btn-small" id="celClose">つづける</button>
+  </div>
+</div>
+
+<!-- 初回起動のときだけ一度出る献辞。見たら二度と出ない -->
+<div class="dedication" id="dedication" hidden>
+  <div class="dedication-card">
+    <img class="dedication-icon" src="icons/icon-192.png" alt="" width="88" height="88">
+    <div class="dedication-fr">Bon anniversaire</div>
+    <h2 class="dedication-ja">お誕生日おめでとう</h2>
+    <p class="dedication-body">
+      この旅は、あなたの<wbr>思いつきから始まりました。
+    </p>
+    <dl class="credit-list dedication-credits">
+      <dt>原案</dt><dd>Daïsuké K. <span class="credit-alias">〈Le Randonneur〉</span></dd>
+      <dt>製作</dt><dd>芥川</dd>
+      <dt></dt><dd class="credit-date">2026年10月</dd>
+    </dl>
+    <p class="dedication-note">
+      日本一周は 12,000 km。<br>
+      最初のマイルストーンは、箱根越えです。
+    </p>
+    <button type="button" class="btn-main btn-small" id="dedicationClose">旅をはじめる</button>
   </div>
 </div>
 

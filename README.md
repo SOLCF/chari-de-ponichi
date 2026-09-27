@@ -246,3 +246,38 @@ APK のビルドには Android SDK が要るので、この PC には入れず G
   固定の keystore を GitHub のシークレットに置いて署名すれば解消できる（未対応）
 - Android の「電池の最適化」に引っかかると前面サービスごと止められることがある。
   計測が途切れるようなら、端末設定でこのアプリを最適化の対象外にする
+
+---
+
+## 贈呈カード
+
+`tools/card/` に、印刷して手渡すための1枚ものが入っている。
+
+```bash
+node tools/card/make-card.js
+```
+
+`gift-card.html` ができるので、ブラウザで開いて印刷する（A4に A5 のカードが1枚。
+Chrome の印刷設定で「背景のグラフィック」を有効にすること）。
+文面・クレジット・日付は `make-card.js` 冒頭の `CARD` を書き換えれば差し替わる。
+
+QRコードは `qr.svg` を HTML に直接埋め込んでいるので、外部ファイルの参照はない。
+配布URLを変えたときだけ作り直す。
+
+```bash
+npx -y qrcode@1 -t svg -e M -o tools/card/qr.svg "<URL>"
+```
+
+**印刷前に一度スマホでQRを読み取って、正しいURLに飛ぶか確かめること。**
+
+## クレジットと献辞
+
+原案・製作の表記は2箇所にある。変えるときは両方そろえる。
+
+- `index.html` の `.credits`（設定 → このアプリについて）
+- `index.html` の `#dedication`（初回起動時に一度だけ出る献辞）
+
+献辞は `store.hasFlag('dedication')` で出し分けていて、一度閉じると二度と出ない。
+もう一度見たいときは、ブラウザの localStorage から
+`chari-pon-ichi:flag:dedication` を消す。このフラグはバックアップに含めていないので、
+機種変更すれば献辞はまた出る。
